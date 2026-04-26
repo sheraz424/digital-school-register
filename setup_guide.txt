@@ -1,0 +1,91 @@
+﻿===========================================
+DSR - Digital School Register
+Setup Guide for XAMPP
+===========================================
+
+Project: Digital School Management System
+Course: SE Web Engineering - FAST NUCES
+Members: Sheraz Kaleem (21L-5782), Muhammad Waseem Hanif (22F-3720)
+===========================================
+
+PREREQUISITES:
+-------------
+1. XAMPP (Version 7.4 or 8.x) - Download: https://www.apachefriends.org/
+2. Git (Optional) - Download: https://git-scm.com/
+3. Web Browser (Chrome/Firefox/Edge)
+
+STEP 1: GET THE CODE
+--------------------
+Option A - Clone with Git:
+   git clone https://github.com/sheraz424/digital-school-register.git
+
+Option B - Download ZIP:
+   1. Go to: https://github.com/sheraz424/digital-school-register
+   2. Click "Code" button → "Download ZIP"
+   3. Extract the ZIP file
+
+STEP 2: MOVE TO XAMPP
+---------------------
+Copy the folder to:
+   C:\xampp\htdocs\digital-school-register
+   OR D:\xampp\htdocs\digital-school-register (your path)
+
+STEP 3: START XAMPP
+-------------------
+1. Open XAMPP Control Panel
+2. Start Apache (Click "Start")
+3. Start MySQL (Click "Start")
+
+STEP 4: IMPORT DATABASE
+-----------------------
+1. Open browser: http://localhost/phpmyadmin
+2. Click "New" → Create database: dsr_school
+3. Click "Import" tab
+4. Choose file: dsr_school.sql (from project folder)
+5. Click "Go"
+
+STEP 5: ACCESS APPLICATION
+--------------------------
+Go to: http://localhost/digital-school-register/login.php
+
+LOGIN CREDENTIALS (Password for all: admin123)
+----------------------------------------------
+| Role      | Email                    |
+|-----------|--------------------------|
+| Admin     | admin@dsr.com            |
+| Teacher   | teacher@dsr.com          |
+| Student   | student1@dsr.com         |
+| Parent    | parent@dsr.com           |
+
+TROUBLESHOOTING:
+----------------
+- "Database connection failed" → Start MySQL in XAMPP
+- Blank page → Enable PHP errors in php.ini
+- Port 80 in use → Change Apache to port 8080
+
+PROJECT STRUCTURE:
+------------------
+- api/ - All API endpoints for AJAX calls
+- *.php - Main pages (dashboard, attendance, manage_*, etc.)
+- *.css - Styling files
+- dsr_school.sql - Database backup
+
+FEATURES:
+---------
+✓ Role-based authentication (4 user types)
+✓ Complete attendance marking (P/A/L)
+✓ Student management (CRUD)
+✓ Teacher management
+✓ Class management
+✓ Fee tracking and reports
+✓ Grade management
+✓ Parent portal
+✓ Student portal
+
+SUPPORT:
+--------
+GitHub: https://github.com/sheraz424/digital-school-register
+
+===========================================
+© 2025 DSR - FAST NUCES Faisalabad
+===========================================
