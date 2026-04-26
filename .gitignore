@@ -1,0 +1,22 @@
+# XAMPP specific
+*.log
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+
+# Database credentials (if any)
+config_local.php
+
+# Session files
+sess_*
+
+# Backup files
+*.bak
+*.sql.bak
