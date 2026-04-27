@@ -15,7 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_password = $_POST['new_password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
     
-    // Validation
     if (empty($old_password) || empty($new_password) || empty($confirm_password)) {
         $error = 'All fields are required!';
     } elseif ($new_password !== $confirm_password) {
@@ -23,28 +22,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strlen($new_password) < 6) {
         $error = 'New password must be at least 6 characters long!';
     } else {
-        // Get current user
         $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
         $stmt->execute([$user_id]);
         $user = $stmt->fetch();
         
-        // Verify old password (works for both hashed and plain text)
-        $password_valid = false;
-        if (password_verify($old_password, $user['password'] ?? '')) {
-            $password_valid = true;
-        } elseif ($old_password === ($user['password'] ?? '')) {
-            $password_valid = true;
-        }
-        
-        if (!$password_valid) {
-            $error = 'Current password is incorrect!';
-        } else {
-            // Update password
-            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+        // Plain text password comparison
+        if ($old_password === $user['password']) {
             $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-            $stmt->execute([$hashed_password, $user_id]);
-            
-            $success = 'Password changed successfully! Please remember your new password.';
+            $stmt->execute([$new_password, $user_id]);
+            $success = 'Password changed successfully!';
+        } else {
+            $error = 'Current password is incorrect!';
         }
     }
 }

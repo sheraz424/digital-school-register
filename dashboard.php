@@ -14,6 +14,7 @@ $myStudents = 0;
 $myAttendance = 0;
 $myChildren = 0;
 $todayAttendance = 0;
+$recentActivities = [];
 
 // Get statistics based on role
 if ($user_role === 'admin') {
@@ -28,6 +29,18 @@ if ($user_role === 'admin') {
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM classes");
     $result = $stmt->fetch();
     $totalClasses = $result ? $result['total'] : 0;
+    
+    // Admin recent activities - latest attendance and student additions
+    $recentActivities = $pdo->query("
+        SELECT 'attendance' as type, a.attendance_date as date, c.class_name, c.section, 
+               COUNT(a.id) as total_students,
+               SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) as present
+        FROM attendance a
+        JOIN classes c ON a.class_id = c.id
+        GROUP BY a.attendance_date, c.class_name, c.section
+        ORDER BY a.attendance_date DESC
+        LIMIT 3
+    ")->fetchAll();
 }
 
 if ($user_role === 'teacher') {
@@ -44,17 +57,31 @@ if ($user_role === 'teacher') {
     $stmt->execute([$today]);
     $att = $stmt->fetch();
     $todayAttendance = ($att && $att['total'] > 0) ? round(($att['present'] / $att['total']) * 100) : 0;
+    
+    // Teacher recent activities - their classes attendance
+    $recentActivities = $pdo->query("
+        SELECT 'attendance' as type, a.attendance_date as date, c.class_name, c.section,
+               COUNT(a.id) as total_students,
+               SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) as present
+        FROM attendance a
+        JOIN classes c ON a.class_id = c.id
+        GROUP BY a.attendance_date, c.class_name, c.section
+        ORDER BY a.attendance_date DESC
+        LIMIT 3
+    ")->fetchAll();
 }
 
 if ($user_role === 'student') {
+    // Get student info
     $stmt = $pdo->prepare("
         SELECT s.*, c.class_name, c.section 
         FROM students s
         JOIN classes c ON s.class_id = c.id
-        WHERE s.name = ? OR s.email = ?
+        WHERE s.name = ? OR s.email = ? OR s.roll_no = ?
         LIMIT 1
     ");
-    $stmt->execute([$user_name, $user_email]);
+    $searchName = '%' . $user_name . '%';
+    $stmt->execute([$searchName, $user_email, $user_name]);
     $student = $stmt->fetch();
     
     if ($student) {
@@ -68,7 +95,20 @@ if ($user_role === 'student') {
         $stmt->execute([$student['id']]);
         $stats = $stmt->fetch();
         $totalDays = $stats['total'] ?? 0;
-        $myAttendance = $totalDays > 0 ? round((($stats['present'] + ($stats['late'] * 0.5)) / $totalDays) * 100) : 0;
+        $presentDays = $stats['present'] ?? 0;
+        $lateDays = $stats['late'] ?? 0;
+        $myAttendance = $totalDays > 0 ? round((($presentDays + $lateDays * 0.5) / $totalDays) * 100) : 0;
+        
+        // Student recent activities - their own attendance
+        $recentActivities = $pdo->prepare("
+            SELECT 'own_attendance' as type, attendance_date as date, status, remarks
+            FROM attendance 
+            WHERE student_id = ?
+            ORDER BY attendance_date DESC
+            LIMIT 3
+        ");
+        $recentActivities->execute([$student['id']]);
+        $recentActivities = $recentActivities->fetchAll();
     }
 }
 
@@ -81,6 +121,19 @@ if ($user_role === 'parent') {
     $stmt->execute([$user_email]);
     $result = $stmt->fetch();
     $myChildren = $result ? $result['total'] : 0;
+    
+    // Parent recent activities - their children's attendance
+    $recentActivities = $pdo->prepare("
+        SELECT 'child_attendance' as type, a.attendance_date as date, a.status, s.name as student_name,
+               a.remarks
+        FROM attendance a
+        JOIN students s ON a.student_id = s.id
+        WHERE s.parent_email = ?
+        ORDER BY a.attendance_date DESC
+        LIMIT 3
+    ");
+    $recentActivities->execute([$user_email]);
+    $recentActivities = $recentActivities->fetchAll();
 }
 ?>
 <!DOCTYPE html>
@@ -138,6 +191,9 @@ if ($user_role === 'parent') {
         .quick-btn:hover svg {
             color: white;
         }
+        .status-P { color: green; font-weight: bold; }
+        .status-A { color: red; font-weight: bold; }
+        .status-L { color: orange; font-weight: bold; }
     </style>
 </head>
 <body class="role-<?php echo $user_role; ?>">
@@ -153,19 +209,16 @@ if ($user_role === 'parent') {
                 Dashboard
             </a>
             
-            <!-- TEACHER ONLY - Attendance marking -->
             <a href="attendance.php" class="nav-item teacher-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Mark Attendance
             </a>
             
-            <!-- TEACHER ONLY - History -->
             <a href="attendance_history.php" class="nav-item teacher-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14"/><path d="M22 3h-6a4 4 0 0 0-4 4v14"/><path d="M12 21h10"/></svg>
                 History
             </a>
             
-            <!-- STUDENT ONLY -->
             <a href="student_attendance.php" class="nav-item student-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 My Attendance
@@ -176,7 +229,6 @@ if ($user_role === 'parent') {
                 My Grades
             </a>
             
-            <!-- PARENT ONLY -->
             <a href="parent_attendance.php" class="nav-item parent-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 Child's Attendance
@@ -187,7 +239,6 @@ if ($user_role === 'parent') {
                 Fee Payment
             </a>
             
-            <!-- ADMIN ONLY -->
             <a href="manage_students.php" class="nav-item admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 Manage Students
@@ -208,7 +259,6 @@ if ($user_role === 'parent') {
                 Fee Reports
             </a>
             
-            <!-- CHANGE PASSWORD - Visible to ALL ROLES -->
             <a href="change_password.php" class="nav-item">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -264,7 +314,6 @@ if ($user_role === 'parent') {
             </div>
 
             <div class="stats-grid">
-                <!-- ADMIN STATS -->
                 <div class="stat-card blue admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
                     <div class="stat-info">
@@ -289,7 +338,6 @@ if ($user_role === 'parent') {
                     </div>
                 </div>
                 
-                <!-- TEACHER STATS -->
                 <div class="stat-card blue teacher-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
                     <div class="stat-info">
@@ -306,7 +354,6 @@ if ($user_role === 'parent') {
                     </div>
                 </div>
                 
-                <!-- STUDENT STATS -->
                 <div class="stat-card teal student-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
                     <div class="stat-info">
@@ -315,7 +362,6 @@ if ($user_role === 'parent') {
                     </div>
                 </div>
                 
-                <!-- PARENT STATS -->
                 <div class="stat-card gold parent-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
                     <div class="stat-info">
@@ -325,13 +371,11 @@ if ($user_role === 'parent') {
                 </div>
             </div>
 
-            <!-- QUICK ACTIONS - ROLE SPECIFIC -->
             <div class="card">
                 <div class="card-header">
                     <h3>Quick Actions</h3>
                 </div>
                 <div class="quick-actions-grid">
-                    <!-- TEACHER ACTIONS -->
                     <button class="quick-btn teacher-only" onclick="location.href='attendance.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                         Mark Attendance
@@ -347,7 +391,6 @@ if ($user_role === 'parent') {
                         Enter Grades
                     </button>
                     
-                    <!-- ADMIN ACTIONS -->
                     <button class="quick-btn admin-only" onclick="location.href='manage_students.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                         Manage Students
@@ -363,7 +406,6 @@ if ($user_role === 'parent') {
                         Fee Reports
                     </button>
                     
-                    <!-- STUDENT ACTIONS -->
                     <button class="quick-btn student-only" onclick="location.href='student_attendance.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                         View My Attendance
@@ -374,7 +416,6 @@ if ($user_role === 'parent') {
                         View My Grades
                     </button>
                     
-                    <!-- PARENT ACTIONS -->
                     <button class="quick-btn parent-only" onclick="location.href='parent_attendance.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                         Child's Attendance
@@ -385,7 +426,6 @@ if ($user_role === 'parent') {
                         Pay Fees
                     </button>
                     
-                    <!-- CHANGE PASSWORD - Visible to ALL -->
                     <button class="quick-btn" onclick="location.href='change_password.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -396,8 +436,7 @@ if ($user_role === 'parent') {
                 </div>
             </div>
 
-            <!-- CLASS ATTENDANCE - TEACHER ONLY -->
-            <div class="card teacher-only">
+            <div class="card teacher-only admin-only">
                 <div class="card-header">
                     <h3>Class Attendance Today</h3>
                 </div>
@@ -426,38 +465,95 @@ if ($user_role === 'parent') {
                 </div>
             </div>
 
-            <!-- RECENT ACTIVITY -->
+            <!-- Recent Activity - REAL DATA based on role -->
             <div class="card">
                 <div class="card-header">
-                    <h3>Recent Activity</h3>
+                    <h3>
+                        <?php 
+                        if($user_role === 'admin') echo 'Recent School Activity';
+                        elseif($user_role === 'teacher') echo 'Recent Class Activity';
+                        elseif($user_role === 'student') echo 'My Recent Attendance';
+                        else echo "Children's Recent Activity";
+                        ?>
+                    </h3>
                     <a href="#" class="view-all">View All</a>
                 </div>
                 <div class="activity-list">
-                    <div class="activity-item">
-                        <div class="activity-dot blue-dot"></div>
-                        <div class="activity-body">
-                            <span class="activity-text">Attendance marked for Class 9-A - 28 students present</span>
-                            <span class="activity-time">Today, 10:30 AM</span>
+                    <?php if(empty($recentActivities)): ?>
+                        <div class="activity-item">
+                            <div class="activity-dot blue-dot"></div>
+                            <div class="activity-body">
+                                <span class="activity-text">No recent activity found.</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="activity-item">
-                        <div class="activity-dot teal-dot"></div>
-                        <div class="activity-body">
-                            <span class="activity-text">New student enrolled - Ayesha Tariq (Class 9-A)</span>
-                            <span class="activity-time">Yesterday, 2:15 PM</span>
-                        </div>
-                    </div>
-                    <div class="activity-item">
-                        <div class="activity-dot gold-dot"></div>
-                        <div class="activity-body">
-                            <span class="activity-text">Fee payment received - Roll #247 - Rs 12,500</span>
-                            <span class="activity-time">Yesterday, 11:00 AM</span>
-                        </div>
-                    </div>
+                    <?php else: ?>
+                        <?php foreach($recentActivities as $activity): ?>
+                            <?php if($user_role === 'admin' || $user_role === 'teacher'): ?>
+                                <?php 
+                                    $presentCount = $activity['present'] ?? 0;
+                                    $totalCount = $activity['total_students'] ?? 0;
+                                    $classDisplay = ($activity['class_name'] ?? '') . (($activity['section'] ?? '') ? '-' . $activity['section'] : '');
+                                ?>
+                                <div class="activity-item">
+                                    <div class="activity-dot blue-dot"></div>
+                                    <div class="activity-body">
+                                        <span class="activity-text">
+                                            Attendance marked for Class <?php echo $classDisplay; ?> - 
+                                            <?php echo $presentCount; ?>/<?php echo $totalCount; ?> students present
+                                        </span>
+                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
+                                    </div>
+                                </div>
+                            <?php elseif($user_role === 'student'): ?>
+                                <div class="activity-item">
+                                    <div class="activity-dot <?php echo $activity['status'] === 'P' ? 'green-dot' : ($activity['status'] === 'A' ? 'red-dot' : 'gold-dot'); ?>"></div>
+                                    <div class="activity-body">
+                                        <span class="activity-text">
+                                            On <?php echo date('d M Y', strtotime($activity['date'])); ?>: 
+                                            <strong>
+                                                <?php 
+                                                if($activity['status'] === 'P') echo 'Present';
+                                                elseif($activity['status'] === 'A') echo 'Absent';
+                                                else echo 'Late';
+                                                ?>
+                                            </strong>
+                                            <?php echo $activity['remarks'] ? ' - ' . $activity['remarks'] : ''; ?>
+                                        </span>
+                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
+                                    </div>
+                                </div>
+                            <?php elseif($user_role === 'parent'): ?>
+                                <div class="activity-item">
+                                    <div class="activity-dot <?php echo $activity['status'] === 'P' ? 'green-dot' : ($activity['status'] === 'A' ? 'red-dot' : 'gold-dot'); ?>"></div>
+                                    <div class="activity-body">
+                                        <span class="activity-text">
+                                            <strong><?php echo htmlspecialchars($activity['student_name']); ?></strong> was 
+                                            <?php 
+                                            if($activity['status'] === 'P') echo 'present';
+                                            elseif($activity['status'] === 'A') echo 'absent';
+                                            else echo 'late';
+                                            ?>
+                                            on <?php echo date('d M Y', strtotime($activity['date'])); ?>
+                                            <?php echo $activity['remarks'] ? ' - ' . $activity['remarks'] : ''; ?>
+                                        </span>
+                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </main>
+
+    <style>
+        .green-dot { background: var(--green); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+        .red-dot { background: var(--red); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+        .gold-dot { background: var(--gold); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+        .blue-dot { background: var(--accent); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+        .teal-dot { background: var(--teal); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    </style>
 
     <script>
         document.getElementById('date-display').textContent = new Date().toLocaleDateString('en-PK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });

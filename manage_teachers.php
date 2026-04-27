@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_teacher'])) {
     $password = 'teacher123';
     
     $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'teacher', ?)");
-    $stmt->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $full_name, $contact]);
+    $stmt->execute([$username, $email, $password, $full_name, $contact]);
     
     $success = "Teacher added! Email: $email | Password: $password";
 }
@@ -38,9 +38,8 @@ if (isset($_GET['delete'])) {
 if (isset($_GET['reset_password'])) {
     $id = $_GET['reset_password'];
     $new_password = 'teacher123';
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ? AND role = 'teacher'");
-    $stmt->execute([$hashed_password, $id]);
+    $stmt->execute([$new_password, $id]);
     $success = "Password reset to: $new_password";
 }
 

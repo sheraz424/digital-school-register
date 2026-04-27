@@ -20,15 +20,14 @@ if (isset($_GET['delete'])) {
 if (isset($_GET['reset_password'])) {
     $id = $_GET['reset_password'];
     $new_password = 'student123';
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
     
     // Update password in users table
     $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = (SELECT user_id FROM students WHERE id = ?)");
-    $stmt->execute([$hashed_password, $id]);
+    $stmt->execute([$new_password, $id]);
     
     // Update password in students table
     $stmt = $pdo->prepare("UPDATE students SET password = ? WHERE id = ?");
-    $stmt->execute([$hashed_password, $id]);
+    $stmt->execute([$new_password, $id]);
     
     $success = "Student password reset to: student123";
 }
@@ -41,34 +40,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_student'])) {
     $parent_email = $_POST['parent_email'];
     $contact = $_POST['contact'];
     
-    // Auto-generate email: rollno@dsr.com
     $student_email = strtolower($roll_no) . '@dsr.com';
     $default_password = 'student123';
-    $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
     
     // Insert student
     $stmt = $pdo->prepare("INSERT INTO students (roll_no, name, class_id, email, parent_email, contact, password) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$roll_no, $name, $class_id, $student_email, $parent_email, $contact, $hashed_password]);
+    $stmt->execute([$roll_no, $name, $class_id, $student_email, $parent_email, $contact, $default_password]);
     $student_id = $pdo->lastInsertId();
     
     // Create user account for student
     $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role) VALUES (?, ?, ?, ?, 'student')");
-    $stmt->execute([$roll_no, $student_email, $hashed_password, $name]);
+    $stmt->execute([$roll_no, $student_email, $default_password, $name]);
     $user_id = $pdo->lastInsertId();
     
     // Link student to user
     $stmt = $pdo->prepare("UPDATE students SET user_id = ? WHERE id = ?");
     $stmt->execute([$user_id, $student_id]);
     
-    // Check if parent user exists, if not create parent account
+    // Check if parent user exists
     if ($parent_email) {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
         $stmt->execute([$parent_email]);
         if (!$stmt->fetch()) {
-            // Create parent account
             $parent_name = "Parent of $name";
             $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role) VALUES (?, ?, ?, ?, 'parent')");
-            $stmt->execute([$parent_email, $parent_email, $hashed_password, $parent_name]);
+            $stmt->execute([$parent_email, $parent_email, $default_password, $parent_name]);
         }
     }
     
@@ -87,7 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
     $stmt = $pdo->prepare("UPDATE students SET roll_no=?, name=?, class_id=?, parent_email=?, contact=? WHERE id=?");
     $stmt->execute([$roll_no, $name, $class_id, $parent_email, $contact, $id]);
     
-    // Update user account
     $student_email = strtolower($roll_no) . '@dsr.com';
     $stmt = $pdo->prepare("UPDATE users SET username=?, email=?, full_name=? WHERE id = (SELECT user_id FROM students WHERE id=?)");
     $stmt->execute([$roll_no, $student_email, $name, $id]);
