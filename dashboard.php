@@ -6,7 +6,7 @@ $user_role = $_SESSION['user_role'];
 $user_name = $_SESSION['user_name'];
 $user_email = $_SESSION['user_email'];
 
-// Initialize variables
+// Get counts based on role
 $totalStudents = 0;
 $totalTeachers = 0;
 $totalClasses = 0;
@@ -14,39 +14,27 @@ $myStudents = 0;
 $myAttendance = 0;
 $myChildren = 0;
 $todayAttendance = 0;
-$recentActivities = [];
+$pendingFees = 0;
+$notifications = [];
 
-// Get statistics based on role
 if ($user_role === 'admin') {
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM students");
-    $result = $stmt->fetch();
-    $totalStudents = $result ? $result['total'] : 0;
+    $totalStudents = $stmt->fetch()['total'];
     
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM users WHERE role = 'teacher'");
-    $result = $stmt->fetch();
-    $totalTeachers = $result ? $result['total'] : 0;
+    $totalTeachers = $stmt->fetch()['total'];
     
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM classes");
-    $result = $stmt->fetch();
-    $totalClasses = $result ? $result['total'] : 0;
+    $totalClasses = $stmt->fetch()['total'];
     
-    // Admin recent activities - latest attendance and student additions
-    $recentActivities = $pdo->query("
-        SELECT 'attendance' as type, a.attendance_date as date, c.class_name, c.section, 
-               COUNT(a.id) as total_students,
-               SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) as present
-        FROM attendance a
-        JOIN classes c ON a.class_id = c.id
-        GROUP BY a.attendance_date, c.class_name, c.section
-        ORDER BY a.attendance_date DESC
-        LIMIT 3
-    ")->fetchAll();
+    // Get pending fees count
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM fees WHERE status = 'Pending'");
+    $pendingFees = $stmt->fetch()['total'];
 }
 
 if ($user_role === 'teacher') {
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM students");
-    $result = $stmt->fetch();
-    $myStudents = $result ? $result['total'] : 0;
+    $myStudents = $stmt->fetch()['total'];
     
     $today = date('Y-m-d');
     $stmt = $pdo->prepare("
@@ -58,30 +46,30 @@ if ($user_role === 'teacher') {
     $att = $stmt->fetch();
     $todayAttendance = ($att && $att['total'] > 0) ? round(($att['present'] / $att['total']) * 100) : 0;
     
-    // Teacher recent activities - their classes attendance
-    $recentActivities = $pdo->query("
-        SELECT 'attendance' as type, a.attendance_date as date, c.class_name, c.section,
-               COUNT(a.id) as total_students,
-               SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) as present
+    // Get recent absent students for notification
+    $stmt = $pdo->prepare("
+        SELECT s.name, a.attendance_date 
         FROM attendance a
-        JOIN classes c ON a.class_id = c.id
-        GROUP BY a.attendance_date, c.class_name, c.section
-        ORDER BY a.attendance_date DESC
-        LIMIT 3
-    ")->fetchAll();
+        JOIN students s ON a.student_id = s.id
+        WHERE a.status = 'A' AND a.attendance_date = ?
+        LIMIT 5
+    ");
+    $stmt->execute([$today]);
+    $absentStudents = $stmt->fetchAll();
+    foreach($absentStudents as $absent) {
+        $notifications[] = $absent['name'] . ' was absent today.';
+    }
 }
 
 if ($user_role === 'student') {
-    // Get student info
     $stmt = $pdo->prepare("
         SELECT s.*, c.class_name, c.section 
         FROM students s
         JOIN classes c ON s.class_id = c.id
-        WHERE s.name = ? OR s.email = ? OR s.roll_no = ?
+        WHERE s.name = ? OR s.email = ?
         LIMIT 1
     ");
-    $searchName = '%' . $user_name . '%';
-    $stmt->execute([$searchName, $user_email, $user_name]);
+    $stmt->execute([$user_name, $user_email]);
     $student = $stmt->fetch();
     
     if ($student) {
@@ -98,17 +86,6 @@ if ($user_role === 'student') {
         $presentDays = $stats['present'] ?? 0;
         $lateDays = $stats['late'] ?? 0;
         $myAttendance = $totalDays > 0 ? round((($presentDays + $lateDays * 0.5) / $totalDays) * 100) : 0;
-        
-        // Student recent activities - their own attendance
-        $recentActivities = $pdo->prepare("
-            SELECT 'own_attendance' as type, attendance_date as date, status, remarks
-            FROM attendance 
-            WHERE student_id = ?
-            ORDER BY attendance_date DESC
-            LIMIT 3
-        ");
-        $recentActivities->execute([$student['id']]);
-        $recentActivities = $recentActivities->fetchAll();
     }
 }
 
@@ -119,21 +96,23 @@ if ($user_role === 'parent') {
         WHERE parent_email = ?
     ");
     $stmt->execute([$user_email]);
-    $result = $stmt->fetch();
-    $myChildren = $result ? $result['total'] : 0;
+    $myChildren = $stmt->fetch()['total'];
     
-    // Parent recent activities - their children's attendance
-    $recentActivities = $pdo->prepare("
-        SELECT 'child_attendance' as type, a.attendance_date as date, a.status, s.name as student_name,
-               a.remarks
-        FROM attendance a
-        JOIN students s ON a.student_id = s.id
+    // Get children with low attendance
+    $stmt = $pdo->prepare("
+        SELECT s.name, 
+               ROUND(AVG(CASE WHEN a.status = 'P' THEN 100 WHEN a.status = 'L' THEN 50 ELSE 0 END), 1) as percent
+        FROM students s
+        LEFT JOIN attendance a ON s.id = a.student_id
         WHERE s.parent_email = ?
-        ORDER BY a.attendance_date DESC
-        LIMIT 3
+        GROUP BY s.id
+        HAVING percent < 75
     ");
-    $recentActivities->execute([$user_email]);
-    $recentActivities = $recentActivities->fetchAll();
+    $stmt->execute([$user_email]);
+    $lowAttendance = $stmt->fetchAll();
+    foreach($lowAttendance as $child) {
+        $notifications[] = $child['name'] . ' has low attendance (' . $child['percent'] . '%)';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -149,13 +128,11 @@ if ($user_role === 'parent') {
         .admin-only, .teacher-only, .student-only, .parent-only { display: none !important; }
         
         body.role-admin .admin-only { display: flex !important; }
-        body.role-admin .admin-only-block { display: block !important; }
+        body.role-admin .admin-only-inline { display: inline-block !important; }
         body.role-teacher .teacher-only { display: flex !important; }
-        body.role-teacher .teacher-only-block { display: block !important; }
+        body.role-teacher .teacher-only-inline { display: inline-block !important; }
         body.role-student .student-only { display: flex !important; }
-        body.role-student .student-only-block { display: block !important; }
         body.role-parent .parent-only { display: flex !important; }
-        body.role-parent .parent-only-block { display: block !important; }
         
         .quick-actions-grid {
             display: grid;
@@ -178,22 +155,62 @@ if ($user_role === 'parent') {
             color: var(--text);
             transition: all 0.2s;
         }
-        .quick-btn svg {
-            width: 18px;
-            height: 18px;
-            color: var(--accent);
+        .quick-btn svg { width: 18px; height: 18px; color: var(--accent); }
+        .quick-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+        .quick-btn:hover svg { color: white; }
+        
+        /* Notification Bell */
+        .notification-icon {
+            position: relative;
+            cursor: pointer;
         }
-        .quick-btn:hover {
-            background: var(--accent);
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--red);
             color: white;
-            border-color: var(--accent);
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
         }
-        .quick-btn:hover svg {
-            color: white;
+        .notification-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 40px;
+            width: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
         }
-        .status-P { color: green; font-weight: bold; }
-        .status-A { color: red; font-weight: bold; }
-        .status-L { color: orange; font-weight: bold; }
+        .notification-dropdown.show { display: block; }
+        .notification-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .notification-item:last-child { border-bottom: none; }
+        
+        /* Progress Ring */
+        .progress-ring {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+        .progress-ring-circle {
+            transform: rotate(-90deg);
+        }
+        .progress-ring-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="role-<?php echo $user_role; ?>">
@@ -240,7 +257,7 @@ if ($user_role === 'parent') {
             </a>
             
             <a href="manage_students.php" class="nav-item admin-only">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 Manage Students
             </a>
             
@@ -259,11 +276,19 @@ if ($user_role === 'parent') {
                 Fee Reports
             </a>
             
+            <!-- Edit Profile Links -->
+            <a href="edit_teacher_profile.php" class="nav-item teacher-only">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 6l2 2 4-4"/></svg>
+                Edit Profile
+            </a>
+            
+            <a href="edit_student_profile.php" class="nav-item student-only">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 6l2 2 4-4"/></svg>
+                Edit Profile
+            </a>
+            
             <a href="change_password.php" class="nav-item">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 Change Password
             </a>
         </nav>
@@ -291,6 +316,25 @@ if ($user_role === 'parent') {
                 </div>
             </div>
             <div class="topbar-right">
+                <!-- Notification Bell -->
+                <div class="notification-icon" onclick="toggleNotifications()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    <?php if(count($notifications) > 0): ?>
+                    <span class="notification-badge"><?php echo count($notifications); ?></span>
+                    <?php endif; ?>
+                    <div id="notificationDropdown" class="notification-dropdown">
+                        <?php if(empty($notifications)): ?>
+                        <div class="notification-item">No new notifications</div>
+                        <?php else: ?>
+                        <?php foreach($notifications as $notif): ?>
+                        <div class="notification-item">🔔 <?php echo $notif; ?></div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
                 <div class="date-badge">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     <span id="date-display"></span>
@@ -304,256 +348,104 @@ if ($user_role === 'parent') {
                     <h2>Welcome, <?php echo htmlspecialchars($user_name); ?>!</h2>
                     <p>
                         <?php 
-                        if($user_role === 'admin') echo "Manage your school from here.";
-                        elseif($user_role === 'teacher') echo "Manage your classes and track student attendance.";
-                        elseif($user_role === 'student') echo "View your attendance and academic progress.";
-                        else echo "Monitor your child's educational journey.";
+                        if($user_role === 'admin') echo "🎓 Manage your school from here. Total students: $totalStudents, Teachers: $totalTeachers";
+                        elseif($user_role === 'teacher') echo "📚 Manage your classes and track student attendance.";
+                        elseif($user_role === 'student') echo "📖 View your attendance and academic progress.";
+                        else echo "👪 Monitor your child's educational journey.";
                         ?>
                     </p>
                 </div>
             </div>
 
             <div class="stats-grid">
+                <!-- Admin Stats -->
                 <div class="stat-card blue admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">Total Students</span>
-                        <span class="stat-value"><?php echo $totalStudents; ?></span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">Total Students</span><span class="stat-value"><?php echo $totalStudents; ?></span></div>
                 </div>
-                
                 <div class="stat-card teal admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">Total Teachers</span>
-                        <span class="stat-value"><?php echo $totalTeachers; ?></span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">Total Teachers</span><span class="stat-value"><?php echo $totalTeachers; ?></span></div>
                 </div>
-                
                 <div class="stat-card gold admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">Total Classes</span>
-                        <span class="stat-value"><?php echo $totalClasses; ?></span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">Total Classes</span><span class="stat-value"><?php echo $totalClasses; ?></span></div>
+                </div>
+                <div class="stat-card green admin-only">
+                    <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                    <div class="stat-info"><span class="stat-label">Pending Fees</span><span class="stat-value"><?php echo $pendingFees; ?></span></div>
                 </div>
                 
+                <!-- Teacher Stats -->
                 <div class="stat-card blue teacher-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">My Students</span>
-                        <span class="stat-value"><?php echo $myStudents; ?></span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">My Students</span><span class="stat-value"><?php echo $myStudents; ?></span></div>
                 </div>
-                
                 <div class="stat-card gold teacher-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">Today's Attendance</span>
-                        <span class="stat-value"><?php echo $todayAttendance; ?>%</span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">Today's Attendance</span><span class="stat-value"><?php echo $todayAttendance; ?>%</span></div>
                 </div>
                 
+                <!-- Student Stats -->
                 <div class="stat-card teal student-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">My Attendance</span>
-                        <span class="stat-value"><?php echo $myAttendance; ?>%</span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">My Attendance</span><span class="stat-value"><?php echo $myAttendance; ?>%</span></div>
                 </div>
                 
+                <!-- Parent Stats -->
                 <div class="stat-card gold parent-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-                    <div class="stat-info">
-                        <span class="stat-label">My Children</span>
-                        <span class="stat-value"><?php echo $myChildren; ?></span>
-                    </div>
+                    <div class="stat-info"><span class="stat-label">My Children</span><span class="stat-value"><?php echo $myChildren; ?></span></div>
                 </div>
             </div>
 
+            <!-- Quick Actions -->
             <div class="card">
-                <div class="card-header">
-                    <h3>Quick Actions</h3>
-                </div>
+                <div class="card-header"><h3>Quick Actions</h3></div>
                 <div class="quick-actions-grid">
-                    <button class="quick-btn teacher-only" onclick="location.href='attendance.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                        Mark Attendance
-                    </button>
+                    <button class="quick-btn teacher-only" onclick="location.href='attendance.php'">📋 Mark Attendance</button>
+                    <button class="quick-btn teacher-only" onclick="location.href='attendance_history.php'">📊 View History</button>
+                    <button class="quick-btn teacher-only" onclick="location.href='teacher_grades.php'">✏️ Enter Grades</button>
                     
-                    <button class="quick-btn teacher-only" onclick="location.href='attendance_history.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14"/><path d="M22 3h-6a4 4 0 0 0-4 4v14"/></svg>
-                        View History
-                    </button>
+                    <button class="quick-btn admin-only" onclick="location.href='manage_students.php'">👨‍🎓 Manage Students</button>
+                    <button class="quick-btn admin-only" onclick="location.href='manage_teachers.php'">👨‍🏫 Manage Teachers</button>
+                    <button class="quick-btn admin-only" onclick="location.href='fee_reports.php'">💰 Fee Reports</button>
                     
-                    <button class="quick-btn teacher-only" onclick="location.href='teacher_grades.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Enter Grades
-                    </button>
+                    <button class="quick-btn student-only" onclick="location.href='student_attendance.php'">📅 My Attendance</button>
+                    <button class="quick-btn student-only" onclick="location.href='student_grades.php'">🎓 My Grades</button>
+                    <button class="quick-btn student-only" onclick="location.href='edit_student_profile.php'">✏️ Edit Profile</button>
                     
-                    <button class="quick-btn admin-only" onclick="location.href='manage_students.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                        Manage Students
-                    </button>
+                    <button class="quick-btn parent-only" onclick="location.href='parent_attendance.php'">👶 Child's Attendance</button>
+                    <button class="quick-btn parent-only" onclick="location.href='parent_fees.php'">💵 Pay Fees</button>
                     
-                    <button class="quick-btn admin-only" onclick="location.href='manage_teachers.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                        Manage Teachers
-                    </button>
-                    
-                    <button class="quick-btn admin-only" onclick="location.href='fee_reports.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                        Fee Reports
-                    </button>
-                    
-                    <button class="quick-btn student-only" onclick="location.href='student_attendance.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                        View My Attendance
-                    </button>
-                    
-                    <button class="quick-btn student-only" onclick="location.href='student_grades.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        View My Grades
-                    </button>
-                    
-                    <button class="quick-btn parent-only" onclick="location.href='parent_attendance.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                        Child's Attendance
-                    </button>
-                    
-                    <button class="quick-btn parent-only" onclick="location.href='parent_fees.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                        Pay Fees
-                    </button>
-                    
-                    <button class="quick-btn" onclick="location.href='change_password.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                        Change Password
-                    </button>
+                    <button class="quick-btn" onclick="location.href='change_password.php'">🔒 Change Password</button>
                 </div>
             </div>
 
+            <!-- Class Attendance - Teacher Only -->
             <div class="card teacher-only admin-only">
-                <div class="card-header">
-                    <h3>Class Attendance Today</h3>
-                </div>
+                <div class="card-header"><h3>Class Attendance Today</h3></div>
                 <div class="attendance-bars">
                     <?php
                     $classes = $pdo->query("SELECT id, class_name, section FROM classes LIMIT 5");
                     while($class = $classes->fetch()):
                         $classDisplay = $class['class_name'] . ($class['section'] ? '-' . $class['section'] : '');
                         $today = date('Y-m-d');
-                        $stmt = $pdo->prepare("
-                            SELECT COUNT(*) as total, SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END) as present
-                            FROM attendance WHERE class_id = ? AND attendance_date = ?
-                        ");
+                        $stmt = $pdo->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END) as present FROM attendance WHERE class_id = ? AND attendance_date = ?");
                         $stmt->execute([$class['id'], $today]);
                         $att = $stmt->fetch();
                         $percent = ($att && $att['total'] > 0) ? round(($att['present'] / $att['total']) * 100) : 0;
-                        $warnClass = $percent < 75 ? 'warn' : '';
-                        $warnText = $percent < 75 ? 'warn-text' : '';
                     ?>
                     <div class="att-row">
                         <span>Class <?php echo $classDisplay; ?></span>
-                        <div class="bar-track"><div class="bar-fill <?php echo $warnClass; ?>" style="width:<?php echo $percent; ?>%"></div></div>
-                        <span class="att-pct <?php echo $warnText; ?>"><?php echo $percent; ?>%</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:<?php echo $percent; ?>%"></div></div>
+                        <span class="att-pct"><?php echo $percent; ?>%</span>
                     </div>
                     <?php endwhile; ?>
                 </div>
             </div>
-
-            <!-- Recent Activity - REAL DATA based on role -->
-            <div class="card">
-                <div class="card-header">
-                    <h3>
-                        <?php 
-                        if($user_role === 'admin') echo 'Recent School Activity';
-                        elseif($user_role === 'teacher') echo 'Recent Class Activity';
-                        elseif($user_role === 'student') echo 'My Recent Attendance';
-                        else echo "Children's Recent Activity";
-                        ?>
-                    </h3>
-                    <a href="#" class="view-all">View All</a>
-                </div>
-                <div class="activity-list">
-                    <?php if(empty($recentActivities)): ?>
-                        <div class="activity-item">
-                            <div class="activity-dot blue-dot"></div>
-                            <div class="activity-body">
-                                <span class="activity-text">No recent activity found.</span>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach($recentActivities as $activity): ?>
-                            <?php if($user_role === 'admin' || $user_role === 'teacher'): ?>
-                                <?php 
-                                    $presentCount = $activity['present'] ?? 0;
-                                    $totalCount = $activity['total_students'] ?? 0;
-                                    $classDisplay = ($activity['class_name'] ?? '') . (($activity['section'] ?? '') ? '-' . $activity['section'] : '');
-                                ?>
-                                <div class="activity-item">
-                                    <div class="activity-dot blue-dot"></div>
-                                    <div class="activity-body">
-                                        <span class="activity-text">
-                                            Attendance marked for Class <?php echo $classDisplay; ?> - 
-                                            <?php echo $presentCount; ?>/<?php echo $totalCount; ?> students present
-                                        </span>
-                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
-                                    </div>
-                                </div>
-                            <?php elseif($user_role === 'student'): ?>
-                                <div class="activity-item">
-                                    <div class="activity-dot <?php echo $activity['status'] === 'P' ? 'green-dot' : ($activity['status'] === 'A' ? 'red-dot' : 'gold-dot'); ?>"></div>
-                                    <div class="activity-body">
-                                        <span class="activity-text">
-                                            On <?php echo date('d M Y', strtotime($activity['date'])); ?>: 
-                                            <strong>
-                                                <?php 
-                                                if($activity['status'] === 'P') echo 'Present';
-                                                elseif($activity['status'] === 'A') echo 'Absent';
-                                                else echo 'Late';
-                                                ?>
-                                            </strong>
-                                            <?php echo $activity['remarks'] ? ' - ' . $activity['remarks'] : ''; ?>
-                                        </span>
-                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
-                                    </div>
-                                </div>
-                            <?php elseif($user_role === 'parent'): ?>
-                                <div class="activity-item">
-                                    <div class="activity-dot <?php echo $activity['status'] === 'P' ? 'green-dot' : ($activity['status'] === 'A' ? 'red-dot' : 'gold-dot'); ?>"></div>
-                                    <div class="activity-body">
-                                        <span class="activity-text">
-                                            <strong><?php echo htmlspecialchars($activity['student_name']); ?></strong> was 
-                                            <?php 
-                                            if($activity['status'] === 'P') echo 'present';
-                                            elseif($activity['status'] === 'A') echo 'absent';
-                                            else echo 'late';
-                                            ?>
-                                            on <?php echo date('d M Y', strtotime($activity['date'])); ?>
-                                            <?php echo $activity['remarks'] ? ' - ' . $activity['remarks'] : ''; ?>
-                                        </span>
-                                        <span class="activity-time"><?php echo date('d M Y', strtotime($activity['date'])); ?></span>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
         </div>
     </main>
-
-    <style>
-        .green-dot { background: var(--green); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-        .red-dot { background: var(--red); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-        .gold-dot { background: var(--gold); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-        .blue-dot { background: var(--accent); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-        .teal-dot { background: var(--teal); width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-    </style>
 
     <script>
         document.getElementById('date-display').textContent = new Date().toLocaleDateString('en-PK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
@@ -562,6 +454,20 @@ if ($user_role === 'parent') {
             document.getElementById('sidebar').classList.toggle('collapsed');
             document.querySelector('.main-content').classList.toggle('expanded');
         }
+        
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationDropdown');
+            dropdown.classList.toggle('show');
+        }
+        
+        // Close notification dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const notificationIcon = document.querySelector('.notification-icon');
+            const dropdown = document.getElementById('notificationDropdown');
+            if (!notificationIcon.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
     </script>
 </body>
 </html>
