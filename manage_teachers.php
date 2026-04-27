@@ -7,6 +7,24 @@ if ($_SESSION['user_role'] !== 'admin') {
     exit;
 }
 
+// Handle Add Teacher
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_teacher'])) {
+    $full_name = $_POST['full_name'];
+    $contact = $_POST['contact'];
+    
+    $name_parts = explode(' ', strtolower($full_name));
+    $first_name = $name_parts[0];
+    $last_name = isset($name_parts[1]) ? $name_parts[1] : $first_name;
+    $email = $first_name . '.' . $last_name . '@dsr.com';
+    $username = $email;
+    $password = 'teacher123';
+    
+    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'teacher', ?)");
+    $stmt->execute([$username, $email, password_hash($password, PASSWORD_DEFAULT), $full_name, $contact]);
+    
+    $success = "Teacher added! Email: $email | Password: $password";
+}
+
 // Handle Delete
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
@@ -16,18 +34,14 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
-// Handle Add
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_teacher'])) {
-    $full_name = $_POST['full_name'];
-    $email = $_POST['email'];
-    $username = $_POST['username'];
-    $contact = $_POST['contact'];
-    $password = 'admin123';
-    
-    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'teacher', ?)");
-    $stmt->execute([$username, $email, $password, $full_name, $contact]);
-    header('Location: manage_teachers.php');
-    exit;
+// Handle Reset Password
+if (isset($_GET['reset_password'])) {
+    $id = $_GET['reset_password'];
+    $new_password = 'teacher123';
+    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ? AND role = 'teacher'");
+    $stmt->execute([$hashed_password, $id]);
+    $success = "Password reset to: $new_password";
 }
 
 $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id DESC")->fetchAll();
@@ -39,11 +53,13 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
     <title>Manage Teachers - DSR</title>
     <link rel="stylesheet" href="dashboard.css">
     <style>
-        .container { padding: 20px; max-width: 1000px; margin: 0 auto; }
+        .container { padding: 20px; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid green; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: var(--bg); }
         .delete-btn { background: var(--red); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .reset-btn { background: var(--gold); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin-right: 5px; }
         .add-btn { background: var(--teal); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin: 20px 0; }
         .back-btn { background: var(--blue); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; display: inline-block; margin-right: 10px; }
         .modal {
@@ -78,6 +94,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
         }
         .btn-submit { background: var(--accent); color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; }
         .btn-cancel { background: #999; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; }
+        .info-text { font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -87,9 +104,13 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
         
         <h1>Manage Teachers</h1>
         
+        <?php if(isset($success)): ?>
+        <div class="success"><?php echo $success; ?></div>
+        <?php endif; ?>
+        
         <table>
             <thead>
-                <tr><th>ID</th><th>Full Name</th><th>Email</th><th>Username</th><th>Contact</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>ID</th><th>Full Name</th><th>Email</th><th>Contact</th><th>Actions</th></tr>
             </thead>
             <tbody>
                 <?php foreach($teachers as $t): ?>
@@ -97,15 +118,13 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
                     <td><?php echo $t['id']; ?></td>
                     <td><?php echo htmlspecialchars($t['full_name']); ?></td>
                     <td><?php echo htmlspecialchars($t['email']); ?></td>
-                    <td><?php echo htmlspecialchars($t['username'] ?? '-'); ?></td>
                     <td><?php echo htmlspecialchars($t['contact'] ?? '-'); ?></td>
-                    <td style="color: green;">Active</td>
-                    <td><a href="?delete=<?php echo $t['id']; ?>" class="delete-btn" onclick="return confirm('Delete this teacher?')">Delete</a></td>
+                    <td>
+                        <a href="?reset_password=<?php echo $t['id']; ?>" class="reset-btn" onclick="return confirm('Reset password to default (teacher123)?')">Reset Pwd</a>
+                        <a href="?delete=<?php echo $t['id']; ?>" class="delete-btn" onclick="return confirm('Delete this teacher?')">Delete</a>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
-                <?php if(empty($teachers)): ?>
-                <tr><td colspan="7" style="text-align:center;">No teachers found</td></tr>
-                <?php endif; ?>
             </tbody>
         </table>
     </div>
@@ -116,11 +135,12 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
             <h3>Add New Teacher</h3>
             <form method="POST">
                 <input type="text" name="full_name" placeholder="Full Name" required>
-                <input type="email" name="email" placeholder="Email" required>
-                <input type="text" name="username" placeholder="Username" required>
+                <div class="info-text">Email will be auto-generated: firstname.lastname@dsr.com</div>
+                <div class="info-text">Default password: teacher123</div>
                 <input type="text" name="contact" placeholder="Contact Number">
+                <input type="hidden" name="add_teacher" value="1">
                 <div class="modal-buttons">
-                    <button type="submit" name="add_teacher" class="btn-submit">Add Teacher</button>
+                    <button type="submit" class="btn-submit">Add Teacher</button>
                     <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
                 </div>
             </form>
@@ -134,12 +154,6 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
         
         function closeModal() {
             document.getElementById('addModal').style.display = 'none';
-        }
-        
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
-            }
         }
     </script>
 </body>

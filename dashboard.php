@@ -68,9 +68,7 @@ if ($user_role === 'student') {
         $stmt->execute([$student['id']]);
         $stats = $stmt->fetch();
         $totalDays = $stats['total'] ?? 0;
-        $present = $stats['present'] ?? 0;
-        $late = $stats['late'] ?? 0;
-        $myAttendance = $totalDays > 0 ? round((($present + $late * 0.5) / $totalDays) * 100) : 0;
+        $myAttendance = $totalDays > 0 ? round((($stats['present'] + ($stats['late'] * 0.5)) / $totalDays) * 100) : 0;
     }
 }
 
@@ -138,51 +136,6 @@ if ($user_role === 'parent') {
             border-color: var(--accent);
         }
         .quick-btn:hover svg {
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            width: 500px;
-            max-width: 90%;
-        }
-        .modal-content input, .modal-content select {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-        }
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .modal-buttons button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        .btn-submit {
-            background: var(--accent);
-            color: white;
-        }
-        .btn-cancel {
-            background: var(--muted);
             color: white;
         }
     </style>
@@ -253,6 +206,15 @@ if ($user_role === 'parent') {
             <a href="fee_reports.php" class="nav-item admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Fee Reports
+            </a>
+            
+            <!-- CHANGE PASSWORD - Visible to ALL ROLES -->
+            <a href="change_password.php" class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                Change Password
             </a>
         </nav>
         <div class="sidebar-profile">
@@ -386,19 +348,19 @@ if ($user_role === 'parent') {
                     </button>
                     
                     <!-- ADMIN ACTIONS -->
-                    <button class="quick-btn admin-only" onclick="openAddStudentModal()">
+                    <button class="quick-btn admin-only" onclick="location.href='manage_students.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                        Add New Student
+                        Manage Students
                     </button>
                     
-                    <button class="quick-btn admin-only" onclick="openAddTeacherModal()">
+                    <button class="quick-btn admin-only" onclick="location.href='manage_teachers.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                        Add New Teacher
+                        Manage Teachers
                     </button>
                     
-                    <button class="quick-btn admin-only" onclick="location.href='manage_classes.php'">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                        Manage Classes
+                    <button class="quick-btn admin-only" onclick="location.href='fee_reports.php'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        Fee Reports
                     </button>
                     
                     <!-- STUDENT ACTIONS -->
@@ -421,6 +383,15 @@ if ($user_role === 'parent') {
                     <button class="quick-btn parent-only" onclick="location.href='parent_fees.php'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                         Pay Fees
+                    </button>
+                    
+                    <!-- CHANGE PASSWORD - Visible to ALL -->
+                    <button class="quick-btn" onclick="location.href='change_password.php'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Change Password
                     </button>
                 </div>
             </div>
@@ -488,49 +459,6 @@ if ($user_role === 'parent') {
         </div>
     </main>
 
-    <!-- Modals for Admin -->
-    <div id="addStudentModal" class="modal">
-        <div class="modal-content">
-            <h3>Add New Student</h3>
-            <form id="addStudentForm">
-                <input type="text" name="roll_no" placeholder="Roll Number" required>
-                <input type="text" name="name" placeholder="Full Name" required>
-                <select name="class_id" required>
-                    <option value="">Select Class</option>
-                    <?php
-                    $classes = $pdo->query("SELECT id, class_name, section FROM classes");
-                    while($class = $classes->fetch()) {
-                        echo "<option value='{$class['id']}'>Class {$class['class_name']}{$class['section']}</option>";
-                    }
-                    ?>
-                </select>
-                <input type="email" name="email" placeholder="Email">
-                <input type="text" name="parent_email" placeholder="Parent Email">
-                <input type="text" name="contact" placeholder="Contact Number">
-                <div class="modal-buttons">
-                    <button type="submit" class="btn-submit">Add Student</button>
-                    <button type="button" class="btn-cancel" onclick="closeModal('addStudentModal')">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="addTeacherModal" class="modal">
-        <div class="modal-content">
-            <h3>Add New Teacher</h3>
-            <form id="addTeacherForm">
-                <input type="text" name="full_name" placeholder="Full Name" required>
-                <input type="email" name="email" placeholder="Email" required>
-                <input type="text" name="username" placeholder="Username" required>
-                <input type="text" name="contact" placeholder="Contact Number">
-                <div class="modal-buttons">
-                    <button type="submit" class="btn-submit">Add Teacher</button>
-                    <button type="button" class="btn-cancel" onclick="closeModal('addTeacherModal')">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         document.getElementById('date-display').textContent = new Date().toLocaleDateString('en-PK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
         
@@ -538,58 +466,6 @@ if ($user_role === 'parent') {
             document.getElementById('sidebar').classList.toggle('collapsed');
             document.querySelector('.main-content').classList.toggle('expanded');
         }
-        
-        function openAddStudentModal() {
-            document.getElementById('addStudentModal').style.display = 'flex';
-        }
-        
-        function openAddTeacherModal() {
-            document.getElementById('addTeacherModal').style.display = 'flex';
-        }
-        
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-        
-        // Add Student via AJAX
-        document.getElementById('addStudentForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData);
-            
-            const response = await fetch('api/add_student.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            alert(result.message);
-            if (result.success) {
-                closeModal('addStudentModal');
-                location.reload();
-            }
-        });
-        
-        // Add Teacher via AJAX
-        document.getElementById('addTeacherForm')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData);
-            data.password = 'admin123'; // Default password
-            data.role = 'teacher';
-            
-            const response = await fetch('api/add_teacher.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            alert(result.message);
-            if (result.success) {
-                closeModal('addTeacherModal');
-                location.reload();
-            }
-        });
     </script>
 </body>
 </html>
