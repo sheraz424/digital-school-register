@@ -12,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email, $role]);
     $user = $stmt->fetch();
     
-    // Check password (plain text)
     if ($user && $password === $user['password']) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['full_name'];
@@ -58,7 +57,6 @@ if ($checkAdmin->rowCount() == 0) {
             position: relative;
         }
 
-        /* Dark Theme */
         body.dark {
             background: #0a0a1a;
         }
@@ -92,7 +90,6 @@ if ($checkAdmin->rowCount() == 0) {
             color: white;
         }
 
-        /* Background */
         .bg-grid {
             position: fixed;
             inset: 0;
@@ -141,7 +138,6 @@ if ($checkAdmin->rowCount() == 0) {
             z-index: 1;
         }
 
-        /* LEFT PANEL */
         .left-panel {
             flex: 0 0 42%;
             background: linear-gradient(145deg, #1A3A5C 0%, #0F2447 60%, #0a1929 100%);
@@ -232,7 +228,6 @@ if ($checkAdmin->rowCount() == 0) {
             margin-top: 4px;
         }
 
-        /* RIGHT PANEL */
         .right-panel {
             flex: 1;
             background: #F7FAFD;
@@ -268,7 +263,6 @@ if ($checkAdmin->rowCount() == 0) {
             color: #6B7A8D;
         }
 
-        /* ROLE TABS */
         .role-tabs {
             display: flex;
             gap: 8px;
@@ -300,7 +294,6 @@ if ($checkAdmin->rowCount() == 0) {
             font-weight: 600;
         }
 
-        /* FORM */
         .field-group {
             margin-bottom: 20px;
         }
@@ -355,7 +348,6 @@ if ($checkAdmin->rowCount() == 0) {
             color: #6B7A8D;
         }
 
-        /* OPTIONS */
         .form-options {
             display: flex;
             justify-content: space-between;
@@ -407,7 +399,6 @@ if ($checkAdmin->rowCount() == 0) {
             text-decoration: none;
         }
 
-        /* BUTTON - FIXED SIZE */
         .btn-login {
             width: 100%;
             padding: 12px 20px;
@@ -431,7 +422,6 @@ if ($checkAdmin->rowCount() == 0) {
             box-shadow: 0 6px 20px rgba(26,58,92,0.3);
         }
 
-        /* DIVIDER */
         .divider {
             display: flex;
             align-items: center;
@@ -555,7 +545,7 @@ if ($checkAdmin->rowCount() == 0) {
             </div>
             <div class="left-content">
                 <h1>Smart School<br/>Management<br/><em>Redefined.</em></h1>
-                <p>Unified platform for all users.</p>
+                <p>Unified platform for administrators, teachers, accountants, students, and parents.</p>
                 <div class="stats-row">
                     <div class="stat">
                         <div class="stat-num">5</div>
@@ -605,7 +595,8 @@ if ($checkAdmin->rowCount() == 0) {
                                 <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
                                 <polyline points="22 6 12 13 2 6"/>
                             </svg>
-                            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                            <!-- NO DUMMY EMAIL - EMPTY FIELD -->
+                            <input type="email" id="email" name="email" placeholder="Enter your email" value="">
                         </div>
                     </div>
 
@@ -616,7 +607,8 @@ if ($checkAdmin->rowCount() == 0) {
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                             </svg>
-                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                            <!-- NO DUMMY PASSWORD - EMPTY FIELD -->
+                            <input type="password" id="password" name="password" placeholder="Enter your password" value="">
                             <button type="button" class="toggle-pw" onclick="togglePassword()">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -670,15 +662,12 @@ if ($checkAdmin->rowCount() == 0) {
     </button>
 
     <script>
-        // Set default email based on selected role
-        document.getElementById('email').value = 'admin@dsr.com';
-        document.getElementById('password').value = 'admin123';
-
         function setRole(role) {
             document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('selected-role').value = role;
             
+            // Auto-fill email based on selected role for testing convenience
             const emails = {
                 admin: 'admin@dsr.com',
                 teacher: 'teacher@dsr.com',
@@ -687,6 +676,7 @@ if ($checkAdmin->rowCount() == 0) {
                 parent: 'parent@dsr.com'
             };
             document.getElementById('email').value = emails[role];
+            document.getElementById('password').value = 'admin123';
         }
 
         function togglePassword() {
@@ -702,6 +692,9 @@ if ($checkAdmin->rowCount() == 0) {
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark');
         }
+        
+        // NO DEFAULT EMAIL - Fields are empty on page load
+        // Users must select a role or type manually
     </script>
 </body>
 </html>
