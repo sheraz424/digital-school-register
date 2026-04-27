@@ -1,24 +1,31 @@
 <?php
-require_once '../db_connection.php';
-session_start();
-
+error_reporting(0);
 header('Content-Type: application/json');
+
+require_once '../db_connection.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     echo json_encode(['success' => false, 'message' => 'Access denied']);
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
-$student_id = $data['student_id'] ?? 0;
-
-if (!$student_id) {
+$id = $_GET['id'] ?? 0;
+if (!$id) {
     echo json_encode(['success' => false, 'message' => 'Student ID required']);
     exit;
 }
 
-$stmt = $pdo->prepare("UPDATE fees SET status = 'Paid', payment_date = CURDATE() WHERE student_id = ?");
-$stmt->execute([$student_id]);
-
-echo json_encode(['success' => true, 'message' => 'Fees marked as paid']);
+try {
+    $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
+    $stmt->execute([$id]);
+    $student = $stmt->fetch();
+    
+    if ($student) {
+        echo json_encode(['success' => true, 'data' => $student]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Student not found']);
+    }
+} catch(PDOException $e) {
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+}
 ?>

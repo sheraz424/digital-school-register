@@ -1,17 +1,20 @@
 <?php
-require_once '../db_connection.php';
-
+error_reporting(0);
 header('Content-Type: application/json');
 
+require_once '../db_connection.php';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    sendResponse(false, 'Invalid request method');
+    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+    exit;
 }
 
 $class_id = isset($_GET['class_id']) ? intval($_GET['class_id']) : 0;
 $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 
 if (!$class_id) {
-    sendResponse(false, 'Class ID is required');
+    echo json_encode(['success' => false, 'message' => 'Class ID is required']);
+    exit;
 }
 
 try {
@@ -21,9 +24,9 @@ try {
     
     $stmt = $pdo->prepare("
         SELECT 
-            SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END) as present,
-            SUM(CASE WHEN status = 'A' THEN 1 ELSE 0 END) as absent,
-            SUM(CASE WHEN status = 'L' THEN 1 ELSE 0 END) as late
+            COALESCE(SUM(CASE WHEN status = 'P' THEN 1 ELSE 0 END), 0) as present,
+            COALESCE(SUM(CASE WHEN status = 'A' THEN 1 ELSE 0 END), 0) as absent,
+            COALESCE(SUM(CASE WHEN status = 'L' THEN 1 ELSE 0 END), 0) as late
         FROM attendance 
         WHERE class_id = ? AND attendance_date = ?
     ");
@@ -35,15 +38,16 @@ try {
     $late = $attendance['late'] ?? 0;
     $percentage = $total > 0 ? round((($present + $late * 0.5) / $total) * 100) : 0;
     
-    sendResponse(true, 'Summary fetched', [
+    echo json_encode(['success' => true, 'message' => 'Summary fetched', 'data' => [
         'total' => intval($total),
         'present' => intval($present),
         'absent' => intval($absent),
         'late' => intval($late),
         'percentage' => $percentage
-    ]);
-    
+    ]]);
+    exit;
 } catch (PDOException $e) {
-    sendResponse(false, 'Database error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    exit;
 }
 ?>

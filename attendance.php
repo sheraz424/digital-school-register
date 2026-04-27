@@ -187,34 +187,43 @@ $user_name = $_SESSION['user_name'];
     let hasChanges = false;
 
     document.getElementById('att-date').value = new Date().toISOString().split('T')[0];
-
-    async function loadClass() {
-        currentClassId = document.getElementById('class-select').value;
-        if (!currentClassId) return;
+async function loadClass() {
+    currentClassId = document.getElementById('class-select').value;
+    if (!currentClassId) return;
+    
+    const date = document.getElementById('att-date').value;
+    
+    try {
+        const response = await fetch(`api/get_students.php?class_id=${currentClassId}&date=${date}`);
+        const text = await response.text();
         
-        const date = document.getElementById('att-date').value;
-        
+        // Try to parse JSON
+        let result;
         try {
-            const response = await fetch(`api/get_students.php?class_id=${currentClassId}&date=${date}`);
-            const result = await response.json();
-            
-            if (result.success) {
-                currentStudents = result.data;
-                renderTable(currentStudents);
-                document.getElementById('att-card').style.display = 'block';
-                document.getElementById('summary-strip').style.display = 'flex';
-                const classOption = document.getElementById('class-select').options[document.getElementById('class-select').selectedIndex];
-                document.getElementById('class-title').textContent = classOption.text + ' -- Student List';
-                loadSummary();
-                hasChanges = false;
-                updateSaveStatus();
-            } else {
-                showToast(result.message, 'error');
-            }
-        } catch (error) {
-            showToast('Error loading students: ' + error.message, 'error');
+            result = JSON.parse(text);
+        } catch(e) {
+            console.error('Invalid JSON:', text);
+            showToast('Server error: ' + text.substring(0, 100), 'error');
+            return;
         }
+        
+        if (result.success) {
+            currentStudents = result.data;
+            renderTable(currentStudents);
+            document.getElementById('att-card').style.display = 'block';
+            document.getElementById('summary-strip').style.display = 'flex';
+            const classOption = document.getElementById('class-select').options[document.getElementById('class-select').selectedIndex];
+            document.getElementById('class-title').textContent = classOption.text + ' -- Student List';
+            loadSummary();
+            hasChanges = false;
+            updateSaveStatus();
+        } else {
+            showToast(result.message, 'error');
+        }
+    } catch (error) {
+        showToast('Error loading students: ' + error.message, 'error');
     }
+}
 
     function renderTable(students) {
         const tbody = document.getElementById('student-tbody');

@@ -7,13 +7,13 @@ if ($_SESSION['user_role'] !== 'admin') {
     exit;
 }
 
-// Get fee summary with real data
+// Get fee summary
 $feeSummary = $pdo->query("
     SELECT 
         COUNT(DISTINCT student_id) as total_students,
-        SUM(CASE WHEN status = 'Paid' THEN amount ELSE 0 END) as collected,
-        SUM(CASE WHEN status = 'Pending' THEN amount ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'Overdue' THEN amount ELSE 0 END) as overdue
+        COALESCE(SUM(CASE WHEN status = 'Paid' THEN amount ELSE 0 END), 0) as collected,
+        COALESCE(SUM(CASE WHEN status = 'Pending' THEN amount ELSE 0 END), 0) as pending,
+        COALESCE(SUM(CASE WHEN status = 'Overdue' THEN amount ELSE 0 END), 0) as overdue
     FROM fees
 ")->fetch();
 
@@ -29,6 +29,15 @@ $students = $pdo->query("
     GROUP BY s.id
     ORDER BY c.class_name, s.roll_no
 ")->fetchAll();
+
+// Handle mark as paid
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_paid'])) {
+    $student_id = $_POST['student_id'];
+    $stmt = $pdo->prepare("UPDATE fees SET status = 'Paid', payment_date = CURDATE() WHERE student_id = ?");
+    $stmt->execute([$student_id]);
+    header('Location: fee_reports.php');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -78,6 +87,11 @@ $students = $pdo->query("
         
         <input type="text" id="search" class="search-box" placeholder="Search by student name or roll no..." onkeyup="filterTable()">
         
+        <form method="POST" id="markPaidForm">
+            <input type="hidden" name="student_id" id="paid_student_id">
+            <input type="hidden" name="mark_paid" value="1">
+        </form>
+        
         <table>
             <thead>
                 <tr><th>Roll No</th><th>Student Name</th><th>Class</th><th>Total Fees</th><th>Paid</th><th>Due</th><th>Status</th><th>Action</th></tr>
@@ -96,7 +110,7 @@ $students = $pdo->query("
                     <td>Rs <?php echo number_format($s['due']); ?></td>
                     <td class="status-<?php echo $statusClass; ?>"><?php echo $status; ?></td>
                     <td>
-                        <?php if($status != 'Paid'): ?>
+                        <?php if($status != 'Paid' && $s['due'] > 0): ?>
                         <button class="pay-btn" onclick="markAsPaid(<?php echo $s['id']; ?>)">Mark Paid</button>
                         <?php else: ?>
                         ✓
@@ -123,14 +137,8 @@ $students = $pdo->query("
         
         function markAsPaid(studentId) {
             if (confirm('Mark all fees as paid for this student?')) {
-                fetch('api/mark_fee_paid.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ student_id: studentId })
-                }).then(r => r.json()).then(result => {
-                    alert(result.message);
-                    if (result.success) location.reload();
-                });
+                document.getElementById('paid_student_id').value = studentId;
+                document.getElementById('markPaidForm').submit();
             }
         }
     </script>

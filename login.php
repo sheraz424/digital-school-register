@@ -12,14 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email, $role]);
     $user = $stmt->fetch();
     
-    // Plain text password comparison (since we stored password as plain text)
+    // Simple password comparison (plain text)
     if ($user && $password === $user['password']) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['full_name'];
         $_SESSION['user_role'] = $user['role'];
         $_SESSION['user_email'] = $user['email'];
         
-        // All roles go to the same dashboard
         header('Location: dashboard.php');
         exit;
     } else {
@@ -124,12 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <form method="POST" action="">
                     <div class="role-tabs">
-                        <button type="button" class="role-tab active" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
-                        <button type="button" class="role-tab" data-role="admin" onclick="setRole('admin')">Admin</button>
+                        <button type="button" class="role-tab active" data-role="admin" onclick="setRole('admin')">Admin</button>
+                        <button type="button" class="role-tab" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
                         <button type="button" class="role-tab" data-role="student" onclick="setRole('student')">Student</button>
                         <button type="button" class="role-tab" data-role="parent" onclick="setRole('parent')">Parent</button>
                     </div>
-                    <input type="hidden" name="role" id="selected-role" value="teacher">
+                    <input type="hidden" name="role" id="selected-role" value="admin">
 
                     <div class="field-group">
                         <label for="email">Email / Username</label>
@@ -138,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
                                 <polyline points="22,6 12,13 2,6"/>
                             </svg>
-                            <input type="email" id="email" name="email" placeholder="Enter your email address" required value="teacher@dsr.com" />
+                            <input type="email" id="email" name="email" placeholder="Enter your email address" required>
                         </div>
                     </div>
 
@@ -149,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                             </svg>
-                            <input type="password" id="password" name="password" placeholder="Enter your password" required value="admin123" />
+                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
                             <button type="button" class="toggle-pw" onclick="togglePw()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -177,11 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
 
                 <div class="test-credentials">
-                    <strong>Test Credentials (Password: admin123)</strong><br>
-                    <span>Teacher: teacher@dsr.com</span>
-                    <span>Admin: admin@dsr.com</span>
-                    <span>Student: student1@dsr.com</span>
-                    <span>Parent: parent1@dsr.com</span>
+                    <strong>Demo Accounts (Contact Admin for credentials)</strong>
                 </div>
 
                 <div class="divider"><span>or</span></div>
@@ -202,27 +197,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
             event.target.classList.add('active');
             document.getElementById('selected-role').value = role;
-            
-            var emailInput = document.getElementById('email');
-            var passwordInput = document.getElementById('password');
-            
-            switch(role) {
-                case 'teacher':
-                    emailInput.value = 'teacher@dsr.com';
-                    break;
-                case 'admin':
-                    emailInput.value = 'admin@dsr.com';
-                    break;
-                case 'student':
-                    emailInput.value = 'student1@dsr.com';
-                    break;
-                case 'parent':
-                    emailInput.value = 'parent1@dsr.com';
-                    break;
-                default:
-                    emailInput.value = 'teacher@dsr.com';
-            }
-            passwordInput.value = 'admin123';
         }
         
         function togglePw() {

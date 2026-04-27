@@ -1,21 +1,24 @@
 <?php
-require_once '../db_connection.php';
-
+error_reporting(0);
 header('Content-Type: application/json');
 
+require_once '../db_connection.php';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    sendResponse(false, 'Invalid request method');
+    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+    exit;
 }
 
-$user = getCurrentUser($pdo);
-if (!$user) {
-    sendResponse(false, 'Please login first');
+if (!isset($_SESSION['user_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Please login first']);
+    exit;
 }
 
 $data = json_decode(file_get_contents('php://input'), true);
 
 if (!$data) {
-    sendResponse(false, 'Invalid data received');
+    echo json_encode(['success' => false, 'message' => 'Invalid data received']);
+    exit;
 }
 
 $class_id = isset($data['class_id']) ? intval($data['class_id']) : 0;
@@ -24,7 +27,8 @@ $attendance = isset($data['attendance']) ? $data['attendance'] : [];
 $subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
 
 if (!$class_id || empty($attendance)) {
-    sendResponse(false, 'Class ID and attendance data are required');
+    echo json_encode(['success' => false, 'message' => 'Class ID and attendance data are required']);
+    exit;
 }
 
 try {
@@ -48,25 +52,17 @@ try {
             status = VALUES(status), remarks = VALUES(remarks), marked_by = VALUES(marked_by)
         ");
         
-        if ($stmt->execute([$student_id, $class_id, $subject_id, $date, $status, $remarks, $user['id']])) {
+        if ($stmt->execute([$student_id, $class_id, $subject_id, $date, $status, $remarks, $_SESSION['user_id']])) {
             $successCount++;
         }
     }
     
     $pdo->commit();
-    sendResponse(true, "Attendance saved successfully. $successCount records updated.");
-    
+    echo json_encode(['success' => true, 'message' => "Attendance saved successfully. $successCount records updated."]);
+    exit;
 } catch (PDOException $e) {
     $pdo->rollBack();
-    sendResponse(false, 'Database error: ' . $e->getMessage());
-}
-
-function getCurrentUser($pdo) {
-    if (!isset($_SESSION['user_id'])) {
-        return null;
-    }
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    return $stmt->fetch();
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    exit;
 }
 ?>
