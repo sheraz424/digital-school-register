@@ -12,14 +12,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email, $role]);
     $user = $stmt->fetch();
     
-    // Simple password comparison (plain text)
+    // Plain text password comparison
     if ($user && $password === $user['password']) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['full_name'];
         $_SESSION['user_role'] = $user['role'];
         $_SESSION['user_email'] = $user['email'];
         
-        header('Location: dashboard.php');
+        // Redirect based on role
+        switch($user['role']) {
+            case 'admin':
+                header('Location: dashboard.php');
+                break;
+            case 'accountant':
+                header('Location: accountant_dashboard.php');
+                break;
+            case 'teacher':
+                header('Location: dashboard.php');
+                break;
+            case 'student':
+                header('Location: dashboard.php');
+                break;
+            case 'parent':
+                header('Location: dashboard.php');
+                break;
+            default:
+                header('Location: dashboard.php');
+        }
         exit;
     } else {
         $error = 'Invalid email or password!';
@@ -64,6 +83,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: white;
             border-radius: 4px;
         }
+        .theme-toggle-login {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s;
+        }
+        .theme-toggle-login:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        .theme-toggle-login svg {
+            width: 20px;
+            height: 20px;
+            color: white;
+        }
+        body.dark-theme .theme-toggle-login {
+            background: rgba(0,0,0,0.3);
+        }
+        @media (max-width: 900px) {
+            .theme-toggle-login { left: auto; right: 20px; bottom: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -88,14 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div class="left-content">
                 <h1>Smart School<br/>Management<br/><em>Redefined.</em></h1>
-                <p>A unified platform for administrators, teachers, students, and parents — all in one place.</p>
+                <p>A unified platform for administrators, teachers, accountants, students, and parents.</p>
                 <div class="stats-row">
                     <div class="stat">
-                        <span class="stat-num">4</span>
+                        <span class="stat-num">5</span>
                         <span class="stat-label">User Roles</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-num">10+</span>
+                        <span class="stat-num">15+</span>
                         <span class="stat-label">Modules</span>
                     </div>
                     <div class="stat">
@@ -123,12 +174,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <form method="POST" action="">
                     <div class="role-tabs">
-                        <button type="button" class="role-tab active" data-role="admin" onclick="setRole('admin')">Admin</button>
+                        <button type="button" class="role-tab" data-role="admin" onclick="setRole('admin')">Admin</button>
                         <button type="button" class="role-tab" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
+                        <button type="button" class="role-tab" data-role="accountant" onclick="setRole('accountant')">Accountant</button>
                         <button type="button" class="role-tab" data-role="student" onclick="setRole('student')">Student</button>
                         <button type="button" class="role-tab" data-role="parent" onclick="setRole('parent')">Parent</button>
                     </div>
-                    <input type="hidden" name="role" id="selected-role" value="admin">
+                    <input type="hidden" name="role" id="selected-role" value="teacher">
 
                     <div class="field-group">
                         <label for="email">Email / Username</label>
@@ -176,7 +228,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
 
                 <div class="test-credentials">
-                    <strong>Demo Accounts (Contact Admin for credentials)</strong>
+                    <strong>Test Credentials (Password: admin123)</strong><br>
+                    <span>Admin: admin@dsr.com</span>
+                    <span>Teacher: teacher@dsr.com</span>
+                    <span>Accountant: accountant@dsr.com</span>
+                    <span>Student: student1@dsr.com</span>
+                    <span>Parent: parent@dsr.com</span>
                 </div>
 
                 <div class="divider"><span>or</span></div>
@@ -190,6 +247,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <button class="theme-toggle-login" onclick="toggleLoginTheme()" title="Dark/Light Mode">
+        <svg id="loginThemeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+    </button>
+
     <script>
         function setRole(role) {
             document.querySelectorAll('.role-tab').forEach(function(t) {
@@ -197,11 +260,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
             event.target.classList.add('active');
             document.getElementById('selected-role').value = role;
+            
+            var emailInput = document.getElementById('email');
+            
+            switch(role) {
+                case 'admin':
+                    emailInput.value = 'admin@dsr.com';
+                    break;
+                case 'teacher':
+                    emailInput.value = 'teacher@dsr.com';
+                    break;
+                case 'accountant':
+                    emailInput.value = 'accountant@dsr.com';
+                    break;
+                case 'student':
+                    emailInput.value = 'student1@dsr.com';
+                    break;
+                case 'parent':
+                    emailInput.value = 'parent@dsr.com';
+                    break;
+                default:
+                    emailInput.value = 'teacher@dsr.com';
+            }
         }
         
         function togglePw() {
             var pw = document.getElementById('password');
             pw.type = pw.type === 'password' ? 'text' : 'password';
+        }
+        
+        function toggleLoginTheme() {
+            document.body.classList.toggle('dark-theme');
+            const theme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+            localStorage.setItem('login_theme', theme);
+            
+            const icon = document.getElementById('loginThemeIcon');
+            if (theme === 'dark') {
+                icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+            } else {
+                icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+            }
+        }
+        
+        // Load saved theme on page load
+        const savedLoginTheme = localStorage.getItem('login_theme');
+        if (savedLoginTheme === 'dark') {
+            document.body.classList.add('dark-theme');
+            const icon = document.getElementById('loginThemeIcon');
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
         }
     </script>
 </body>
