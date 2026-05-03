@@ -18,7 +18,7 @@ $todayAttendance = 0;
 $pendingFees = 0;
 $notifications = [];
 
-if ($user_role === 'admin') {
+if ($user_role === 'admin' || $user_role === 'super_admin') {
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM students");
     $totalStudents = $stmt->fetch()['total'];
     
@@ -171,9 +171,11 @@ if ($user_role === 'parent') {
             color: var(--text);
         }
 
-        .admin-only, .teacher-only, .student-only, .parent-only, .academic_officer-only { display: none !important; }
+        .admin-only, .teacher-only, .student-only, .parent-only, .academic_officer-only, .super_admin-only { display: none !important; }
         
         body.role-admin .admin-only { display: flex !important; }
+        body.role-super_admin .super_admin-only { display: flex !important; }
+        body.role-super_admin .admin-only { display: flex !important; }
         body.role-teacher .teacher-only { display: flex !important; }
         body.role-student .student-only { display: flex !important; }
         body.role-parent .parent-only { display: flex !important; }
@@ -314,39 +316,39 @@ if ($user_role === 'parent') {
                 Fee Payment
             </a>
             
-            <a href="manage_students.php" class="nav-item admin-only">
+            <a href="manage_students.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 Manage Students
             </a>
             
-            <a href="manage_teachers.php" class="nav-item admin-only">
+            <a href="manage_teachers.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 Manage Teachers
             </a>
             
-            <a href="manage_accountants.php" class="nav-item admin-only">
+            <a href="manage_accountants.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M3 8h4M6 5v6"/></svg>
                 Manage Accountants
             </a>
             
-            <a href="manage_classes.php" class="nav-item admin-only">
+            <a href="manage_classes.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                 Manage Classes
             </a>
             
-            <a href="fee_management.php" class="nav-item admin-only">
+            <a href="fee_management.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Fee Management
             </a>
             
             <div class="nav-section-label">Advanced</div>
             
-            <a href="accountant_dashboard.php" class="nav-item admin-only">
+            <a href="accountant_dashboard.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Accountant Portal
             </a>
             
-            <a href="academic_officer_dashboard.php" class="nav-item admin-only academic_officer-only">
+            <a href="academic_officer_dashboard.php" class="nav-item admin-only super_admin-only academic_officer-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                     <path d="M2 17l10 5 10-5"/>
@@ -365,7 +367,7 @@ if ($user_role === 'parent') {
                 Email Notifications
             </a>
             
-            <a href="auto_timetable.php" class="nav-item admin-only">
+            <a href="auto_timetable.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><polyline points="16 15 12 11 8 15"/></svg>
                 Auto Timetable
             </a>
@@ -399,7 +401,12 @@ if ($user_role === 'parent') {
             <div class="profile-avatar"><?php echo substr($user_name, 0, 1); ?></div>
             <div class="profile-info">
                 <span class="profile-name"><?php echo htmlspecialchars($user_name); ?></span>
-                <span class="profile-role"><?php echo ucfirst($user_role); ?></span>
+                <span class="profile-role"><?php 
+                    if($user_role === 'super_admin') echo 'Principal';
+                    elseif($user_role === 'admin') echo 'Administrator';
+                    elseif($user_role === 'academic_officer') echo 'Academic Officer';
+                    else echo ucfirst($user_role); 
+                ?></span>
             </div>
         </div>
     </aside>
@@ -453,7 +460,8 @@ if ($user_role === 'parent') {
                     <h2>Welcome, <?php echo htmlspecialchars($user_name); ?>!</h2>
                     <p>
                         <?php 
-                        if($user_role === 'admin') echo "Manage your school from here. Total students: $totalStudents, Teachers: $totalTeachers";
+                        if($user_role === 'super_admin') echo "Welcome Principal! You have full access to manage the entire school system.";
+                        elseif($user_role === 'admin') echo "Manage your school from here. Total students: $totalStudents, Teachers: $totalTeachers";
                         elseif($user_role === 'teacher') echo "Manage your classes and track student attendance.";
                         elseif($user_role === 'student') echo "View your attendance and academic progress.";
                         elseif($user_role === 'parent') echo "Monitor your child's educational journey.";
@@ -465,29 +473,29 @@ if ($user_role === 'parent') {
             </div>
 
             <div class="stats-grid">
-                <!-- Admin Stats -->
-                <div class="stat-card blue admin-only">
+                <!-- Admin/Super Admin Stats -->
+                <div class="stat-card blue admin-only super_admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
                     <div class="stat-info">
                         <span class="stat-label">Total Students</span>
                         <span class="stat-value"><?php echo $totalStudents; ?></span>
                     </div>
                 </div>
-                <div class="stat-card teal admin-only">
+                <div class="stat-card teal admin-only super_admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
                     <div class="stat-info">
                         <span class="stat-label">Total Teachers</span>
                         <span class="stat-value"><?php echo $totalTeachers; ?></span>
                     </div>
                 </div>
-                <div class="stat-card gold admin-only">
+                <div class="stat-card gold admin-only super_admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
                     <div class="stat-info">
                         <span class="stat-label">Total Accountants</span>
                         <span class="stat-value"><?php echo $totalAccountants; ?></span>
                     </div>
                 </div>
-                <div class="stat-card red admin-only">
+                <div class="stat-card red admin-only super_admin-only">
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
                     <div class="stat-info">
                         <span class="stat-label" style="color: rgba(255,255,255,0.8);">Fees Pending</span>
@@ -538,13 +546,13 @@ if ($user_role === 'parent') {
                     <button class="quick-btn teacher-only" onclick="location.href='attendance_history.php'">View History</button>
                     <button class="quick-btn teacher-only" onclick="location.href='teacher_grades.php'">Enter Grades</button>
                     
-                    <button class="quick-btn admin-only" onclick="location.href='manage_students.php'">Manage Students</button>
-                    <button class="quick-btn admin-only" onclick="location.href='manage_teachers.php'">Manage Teachers</button>
-                    <button class="quick-btn admin-only" onclick="location.href='manage_accountants.php'">Manage Accountants</button>
-                    <button class="quick-btn admin-only" onclick="location.href='fee_management.php'">Fee Management</button>
-                    <button class="quick-btn admin-only" onclick="location.href='export_reports.php'">Export Reports</button>
-                    <button class="quick-btn admin-only" onclick="location.href='email_notifications.php'">Email Alerts</button>
-                    <button class="quick-btn admin-only" onclick="location.href='auto_timetable.php'">Auto Timetable</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_students.php'">Manage Students</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_teachers.php'">Manage Teachers</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_accountants.php'">Manage Accountants</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='fee_management.php'">Fee Management</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='export_reports.php'">Export Reports</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='email_notifications.php'">Email Alerts</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='auto_timetable.php'">Auto Timetable</button>
                     
                     <button class="quick-btn academic_officer-only" onclick="location.href='academic_officer_dashboard.php'">Register Student</button>
                     <button class="quick-btn academic_officer-only" onclick="location.href='academic_officer_dashboard.php'">Generate Datesheet</button>
