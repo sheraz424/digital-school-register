@@ -653,16 +653,16 @@ if ($checkAdmin->rowCount() == 0) {
                 </form>
 
                 <div class="test-credentials">
-                    <strong>Test Credentials (Password: admin123)</strong>
-                    <div class="test-credentials-row">
-                        <span>Admin: admin@dsr.com</span>
-                        <span>Teacher: teacher@dsr.com</span>
-                        <span>Accountant: accountant@dsr.com</span>
-                        <span>Academic Officer: academic@dsr.com</span>
-                        <span>Student: student1@dsr.com</span>
-                        <span>Parent: parent@dsr.com</span>
-                    </div>
-                </div>
+    <strong>Test Credentials (Password: admin123)</strong>
+    <div class="test-credentials-row">
+        <span>Admin: admin@dsr.com</span>
+        <span>Teacher: teacher@dsr.com</span>
+        <span>Accountant: accountant@dsr.com</span>
+        <span>Academic Officer: academic@dsr.com</span>
+        <span>Student: student@dsr.com</span>
+        <span>Parent: parent@dsr.com</span>
+    </div>
+</div>
 
                 <div class="divider"><span>or</span></div>
                 <div class="help-text">

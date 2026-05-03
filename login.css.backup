@@ -24,6 +24,28 @@ body {
   overflow-x: hidden;
 }
 
+/* Dark Theme */
+body.dark-theme {
+  --navy: #0a0a1a;
+  --blue: #0f0f2a;
+  --light: #1a1a2e;
+  --white: #16213e;
+  --text: #eeeeee;
+  --muted: #a0a0a0;
+  --border: #2c3e50;
+}
+
+body.dark-theme .form-card,
+body.dark-theme .input-wrap input,
+body.dark-theme .role-tab {
+  background: var(--white);
+  color: var(--text);
+}
+
+body.dark-theme .left-panel {
+  background: linear-gradient(145deg, #0a0a2a 0%, #0a0a1a 60%, #050510 100%);
+}
+
 /* Background elements */
 .bg-grid {
   position: fixed; inset: 0; z-index: 0;
@@ -60,7 +82,7 @@ body {
   display: flex; width: 100%; min-height: 100vh; position: relative; z-index: 1;
 }
 
-/* ── LEFT PANEL ───────────────────────────────── */
+/* LEFT PANEL */
 .left-panel {
   flex: 0 0 42%;
   background: linear-gradient(145deg, var(--blue) 0%, var(--navy) 60%, #0a1929 100%);
@@ -152,7 +174,7 @@ body {
   text-transform: uppercase; letter-spacing: 0.8px;
 }
 
-/* ── RIGHT PANEL ─────────────────────────────── */
+/* RIGHT PANEL */
 .right-panel {
   flex: 1;
   background: #F7FAFD;
@@ -161,8 +183,12 @@ body {
   padding: 48px 40px;
 }
 
+body.dark-theme .right-panel {
+  background: #0f0f1a;
+}
+
 .form-card {
-  width: 100%; max-width: 440px;
+  width: 100%; max-width: 500px;
   background: var(--white);
   border-radius: 24px;
   padding: 44px 40px;
@@ -176,23 +202,76 @@ body {
 }
 .form-header p { font-size: 14px; color: var(--muted); }
 
-/* Role Tabs */
+/* Role Tabs - FIXED - Parent tab now fits */
 .role-tabs {
-  display: flex; gap: 6px;
+  display: flex;
+  gap: 8px;
   background: var(--light);
-  border-radius: 12px; padding: 5px;
+  border-radius: 12px;
+  padding: 6px;
   margin-bottom: 28px;
+  justify-content: space-between;
 }
 
 .role-tab {
   flex: 1;
-  padding: 8px 10px;
-  border: none; background: transparent;
-  border-radius: 8px; cursor: pointer;
+  padding: 10px 4px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
   font-family: 'Sora', sans-serif;
-  font-size: 13px; font-weight: 500;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--muted);
   transition: all 0.25s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* For screens between 600px and 800px */
+@media (min-width: 601px) and (max-width: 800px) {
+  .role-tab {
+    font-size: 12px;
+    padding: 8px 2px;
+  }
+  .role-tabs {
+    gap: 5px;
+    padding: 5px;
+  }
+}
+
+/* For screens between 500px and 600px */
+@media (min-width: 501px) and (max-width: 600px) {
+  .role-tab {
+    font-size: 11px;
+    padding: 8px 2px;
+    white-space: normal;
+    word-break: keep-all;
+    line-height: 1.2;
+  }
+  .role-tabs {
+    gap: 4px;
+    padding: 5px;
+  }
+}
+
+/* For smaller screens - scrollable tabs */
+@media (max-width: 500px) {
+  .role-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 5px;
+    gap: 8px;
+  }
+  .role-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 
 .role-tab.active {
@@ -200,6 +279,11 @@ body {
   color: var(--blue);
   box-shadow: 0 2px 8px rgba(15,36,71,0.10);
   font-weight: 600;
+}
+
+body.dark-theme .role-tab.active {
+  background: var(--accent);
+  color: white;
 }
 
 /* Fields */
@@ -251,6 +335,8 @@ body {
 .form-options {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .checkbox-label {
@@ -339,10 +425,80 @@ body {
   text-align: center;
 }
 
+/* Theme Toggle Button on Login Page */
+.theme-toggle-login {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(5px);
+  transition: all 0.3s;
+}
+
+.theme-toggle-login:hover {
+  background: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+.theme-toggle-login svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+body.dark-theme .theme-toggle-login {
+  background: rgba(0,0,0,0.3);
+}
+
+/* Test Credentials */
+.test-credentials {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.test-credentials strong {
+  color: var(--accent);
+}
+
+.test-credentials span {
+  display: inline-block;
+  margin: 2px 3px;
+  padding: 2px 5px;
+  background: white;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+body.dark-theme .test-credentials span {
+  background: #0f0f23;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .left-panel { display: none; }
   .right-panel { padding: 32px 20px; background: var(--navy); }
-  .form-card { box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+  .form-card { box-shadow: 0 8px 40px rgba(0,0,0,0.3); padding: 30px 24px; max-width: 420px; }
   .right-footer { color: rgba(255,255,255,0.4); }
+  .theme-toggle-login { left: auto; right: 20px; bottom: 20px; }
+  .form-header h2 { font-size: 24px; }
+}
+
+@media (max-width: 550px) {
+  .form-card { padding: 24px 16px; }
+  .btn-login { padding: 12px 16px; font-size: 14px; }
+  .form-header h2 { font-size: 20px; }
 }
