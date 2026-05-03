@@ -163,7 +163,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
     <div class="container">
         <a href="dashboard.php" class="back-btn">← Back to Dashboard</a>
         <button class="add-btn" onclick="openAddModal()">+ Add New Teacher</button>
-        <a href="?export_excel=1" class="export-btn">📎 Export to Excel</a>
+        <a href="?export_excel=1" class="export-btn">Export to Excel</a>
         
         <h1>Manage Teachers</h1>
         
