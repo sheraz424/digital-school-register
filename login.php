@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($user['role'] === 'accountant') {
             header('Location: accountant_dashboard.php');
+        } elseif ($user['role'] === 'academic_officer') {
+            header('Location: academic_officer_dashboard.php');
         } else {
             header('Location: dashboard.php');
         }
@@ -239,7 +241,7 @@ if ($checkAdmin->rowCount() == 0) {
 
         .form-card {
             width: 100%;
-            max-width: 420px;
+            max-width: 440px;
             background: white;
             border-radius: 24px;
             padding: 36px 32px;
@@ -270,6 +272,7 @@ if ($checkAdmin->rowCount() == 0) {
             border-radius: 12px;
             padding: 6px;
             margin-bottom: 28px;
+            flex-wrap: wrap;
         }
 
         .role-tab {
@@ -280,11 +283,15 @@ if ($checkAdmin->rowCount() == 0) {
             border-radius: 8px;
             cursor: pointer;
             font-family: 'Sora', sans-serif;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
             color: #6B7A8D;
             text-align: center;
             transition: all 0.2s;
+        }
+
+        @media (max-width: 600px) {
+            .role-tab { font-size: 10px; padding: 8px 0; }
         }
 
         .role-tab.active {
@@ -466,22 +473,31 @@ if ($checkAdmin->rowCount() == 0) {
             font-size: 11px;
             color: #6B7A8D;
             text-align: center;
-            margin-top: 16px;
-            padding: 10px;
+            margin-top: 20px;
+            padding: 12px;
             background: #F1F5F9;
             border-radius: 8px;
         }
 
         .test-credentials strong {
             color: #2E86AB;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .test-credentials-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
         }
 
         .test-credentials span {
             display: inline-block;
-            margin: 2px;
-            padding: 2px 6px;
+            padding: 2px 8px;
             background: white;
             border-radius: 4px;
+            font-size: 10px;
         }
 
         .right-footer {
@@ -489,6 +505,8 @@ if ($checkAdmin->rowCount() == 0) {
             margin-top: 24px;
             font-size: 12px;
             color: #6B7A8D;
+            padding-top: 16px;
+            border-top: 1px solid #D0DCE8;
         }
 
         .theme-btn {
@@ -545,14 +563,14 @@ if ($checkAdmin->rowCount() == 0) {
             </div>
             <div class="left-content">
                 <h1>Smart School<br/>Management<br/><em>Redefined.</em></h1>
-                <p>Unified platform for administrators, teachers, accountants, students, and parents.</p>
+                <p>Unified platform for administrators, teachers, accountants, academic officers, students, and parents.</p>
                 <div class="stats-row">
                     <div class="stat">
-                        <div class="stat-num">5</div>
-                        <div class="stat-label">Roles</div>
+                        <div class="stat-num">6</div>
+                        <div class="stat-label">User Roles</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-num">15+</div>
+                        <div class="stat-num">20+</div>
                         <div class="stat-label">Modules</div>
                     </div>
                     <div class="stat">
@@ -583,6 +601,7 @@ if ($checkAdmin->rowCount() == 0) {
                         <button type="button" class="role-tab" data-role="admin" onclick="setRole('admin')">Admin</button>
                         <button type="button" class="role-tab" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
                         <button type="button" class="role-tab" data-role="accountant" onclick="setRole('accountant')">Accountant</button>
+                        <button type="button" class="role-tab" data-role="academic_officer" onclick="setRole('academic_officer')">Academic Officer</button>
                         <button type="button" class="role-tab" data-role="student" onclick="setRole('student')">Student</button>
                         <button type="button" class="role-tab" data-role="parent" onclick="setRole('parent')">Parent</button>
                     </div>
@@ -595,8 +614,7 @@ if ($checkAdmin->rowCount() == 0) {
                                 <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
                                 <polyline points="22 6 12 13 2 6"/>
                             </svg>
-                            <!-- NO DUMMY EMAIL - EMPTY FIELD -->
-                            <input type="email" id="email" name="email" placeholder="Enter your email" value="">
+                            <input type="email" id="email" name="email" placeholder="Enter your email" value="" autocomplete="off">
                         </div>
                     </div>
 
@@ -607,8 +625,7 @@ if ($checkAdmin->rowCount() == 0) {
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                             </svg>
-                            <!-- NO DUMMY PASSWORD - EMPTY FIELD -->
-                            <input type="password" id="password" name="password" placeholder="Enter your password" value="">
+                            <input type="password" id="password" name="password" placeholder="Enter your password" value="" autocomplete="off">
                             <button type="button" class="toggle-pw" onclick="togglePassword()">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -636,21 +653,24 @@ if ($checkAdmin->rowCount() == 0) {
                 </form>
 
                 <div class="test-credentials">
-                    <strong>Test Credentials (Password: admin123)</strong><br>
-                    <span>Admin: admin@dsr.com</span>
-                    <span>Teacher: teacher@dsr.com</span>
-                    <span>Accountant: accountant@dsr.com</span>
-                    <span>Student: student1@dsr.com</span>
-                    <span>Parent: parent@dsr.com</span>
+                    <strong>Test Credentials (Password: admin123)</strong>
+                    <div class="test-credentials-row">
+                        <span>Admin: admin@dsr.com</span>
+                        <span>Teacher: teacher@dsr.com</span>
+                        <span>Accountant: accountant@dsr.com</span>
+                        <span>Academic Officer: academic@dsr.com</span>
+                        <span>Student: student1@dsr.com</span>
+                        <span>Parent: parent@dsr.com</span>
+                    </div>
                 </div>
 
                 <div class="divider"><span>or</span></div>
                 <div class="help-text">
                     Need an account? <a href="#">Contact administrator</a>
                 </div>
-            </div>
-            <div class="right-footer">
-                © 2025 DSR System | FAST NUCES Faisalabad
+                <div class="right-footer">
+                    © 2025 DSR System | FAST NUCES Faisalabad
+                </div>
             </div>
         </div>
     </div>
@@ -662,16 +682,20 @@ if ($checkAdmin->rowCount() == 0) {
     </button>
 
     <script>
+        // Set default values
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+
         function setRole(role) {
             document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('selected-role').value = role;
             
-            // Auto-fill email based on selected role for testing convenience
             const emails = {
                 admin: 'admin@dsr.com',
                 teacher: 'teacher@dsr.com',
                 accountant: 'accountant@dsr.com',
+                academic_officer: 'academic@dsr.com',
                 student: 'student1@dsr.com',
                 parent: 'parent@dsr.com'
             };
@@ -692,9 +716,6 @@ if ($checkAdmin->rowCount() == 0) {
         if (localStorage.getItem('theme') === 'dark') {
             document.body.classList.add('dark');
         }
-        
-        // NO DEFAULT EMAIL - Fields are empty on page load
-        // Users must select a role or type manually
     </script>
 </body>
 </html>
