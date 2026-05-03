@@ -341,11 +341,11 @@ if ($user_role === 'parent') {
                 Fee Management
             </a>
             
-            <div class="nav-section-label">Advanced</div>
+            <div class="nav-section-label">Academic</div>
             
-            <a href="accountant_dashboard.php" class="nav-item admin-only super_admin-only">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                Accountant Portal
+            <a href="school_timetable.php" class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/></svg>
+                School Timetable
             </a>
             
             <a href="academic_officer_dashboard.php" class="nav-item admin-only super_admin-only academic_officer-only">
@@ -354,27 +354,17 @@ if ($user_role === 'parent') {
                     <path d="M2 17l10 5 10-5"/>
                     <path d="M2 12l10 5 10-5"/>
                 </svg>
-                Academic Officer
+                Student Registration
             </a>
             
             <a href="export_reports.php" class="nav-item">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Export Reports
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Reports
             </a>
             
-            <a href="email_notifications.php" class="nav-item">
+            <a href="email_notifications.php" class="nav-item admin-only super_admin-only">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6L12 13L2 6"/><path d="M22 6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6"/><path d="M2 6l10 7 10-7"/></svg>
-                Email Notifications
-            </a>
-            
-            <a href="auto_timetable.php" class="nav-item admin-only super_admin-only">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><polyline points="16 15 12 11 8 15"/></svg>
-                Auto Timetable
-            </a>
-            
-            <a href="timetable.php" class="nav-item">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/></svg>
-                View Timetable
+                Email Alerts
             </a>
             
             <a href="leave_management.php" class="nav-item">
@@ -549,10 +539,10 @@ if ($user_role === 'parent') {
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_students.php'">Manage Students</button>
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_teachers.php'">Manage Teachers</button>
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_accountants.php'">Manage Accountants</button>
+                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='manage_classes.php'">Manage Classes</button>
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='fee_management.php'">Fee Management</button>
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='export_reports.php'">Export Reports</button>
                     <button class="quick-btn admin-only super_admin-only" onclick="location.href='email_notifications.php'">Email Alerts</button>
-                    <button class="quick-btn admin-only super_admin-only" onclick="location.href='auto_timetable.php'">Auto Timetable</button>
                     
                     <button class="quick-btn academic_officer-only" onclick="location.href='academic_officer_dashboard.php'">Register Student</button>
                     <button class="quick-btn academic_officer-only" onclick="location.href='academic_officer_dashboard.php'">Generate Datesheet</button>
