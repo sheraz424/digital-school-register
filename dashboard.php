@@ -31,7 +31,7 @@ if ($user_role === 'admin') {
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM classes");
     $totalClasses = $stmt->fetch()['total'];
     
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM fee_allocations WHERE status IN ('Pending', 'Partial')");
+    $stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM fee_allocations WHERE status IN ('Pending', 'Partial')");
     $pendingFees = $stmt->fetch()['total'];
 }
 
@@ -491,7 +491,7 @@ if ($user_role === 'parent') {
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
                     <div class="stat-info">
                         <span class="stat-label" style="color: rgba(255,255,255,0.8);">Fees Pending</span>
-                        <span class="stat-value" style="color: white;"><?php echo $pendingFees; ?></span>
+                        <span class="stat-value" style="color: white;">Rs <?php echo number_format($pendingFees); ?></span>
                     </div>
                 </div>
                 
