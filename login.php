@@ -22,6 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: accountant_dashboard.php');
         } elseif ($user['role'] === 'academic_officer') {
             header('Location: academic_officer_dashboard.php');
+        } elseif ($user['role'] === 'super_admin') {
+            header('Location: dashboard.php');
         } else {
             header('Location: dashboard.php');
         }
@@ -241,7 +243,7 @@ if ($checkAdmin->rowCount() == 0) {
 
         .form-card {
             width: 100%;
-            max-width: 440px;
+            max-width: 460px;
             background: white;
             border-radius: 24px;
             padding: 36px 32px;
@@ -273,25 +275,31 @@ if ($checkAdmin->rowCount() == 0) {
             padding: 6px;
             margin-bottom: 28px;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
         .role-tab {
             flex: 1;
-            padding: 10px 0;
+            min-width: 70px;
+            padding: 10px 6px;
             border: none;
             background: transparent;
             border-radius: 8px;
             cursor: pointer;
             font-family: 'Sora', sans-serif;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             color: #6B7A8D;
             text-align: center;
             transition: all 0.2s;
         }
 
-        @media (max-width: 600px) {
-            .role-tab { font-size: 10px; padding: 8px 0; }
+        @media (max-width: 700px) {
+            .role-tab { font-size: 10px; min-width: 55px; padding: 8px 4px; }
+        }
+        @media (max-width: 550px) {
+            .role-tabs { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; }
+            .role-tab { flex: 0 0 auto; white-space: nowrap; min-width: auto; padding: 8px 12px; }
         }
 
         .role-tab.active {
@@ -536,8 +544,6 @@ if ($checkAdmin->rowCount() == 0) {
 
         @media (max-width: 500px) {
             .form-card { padding: 24px 20px; }
-            .role-tabs { flex-wrap: nowrap; overflow-x: auto; }
-            .role-tab { flex: 0 0 auto; padding: 8px 16px; }
         }
     </style>
 </head>
@@ -563,10 +569,10 @@ if ($checkAdmin->rowCount() == 0) {
             </div>
             <div class="left-content">
                 <h1>Smart School<br/>Management<br/><em>Redefined.</em></h1>
-                <p>Unified platform for administrators, teachers, accountants, academic officers, students, and parents.</p>
+                <p>Unified platform for principals, administrators, teachers, accountants, academic officers, students, and parents.</p>
                 <div class="stats-row">
                     <div class="stat">
-                        <div class="stat-num">6</div>
+                        <div class="stat-num">7</div>
                         <div class="stat-label">User Roles</div>
                     </div>
                     <div class="stat">
@@ -598,6 +604,7 @@ if ($checkAdmin->rowCount() == 0) {
 
                 <form method="POST">
                     <div class="role-tabs">
+                        <button type="button" class="role-tab" data-role="super_admin" onclick="setRole('super_admin')">Principal</button>
                         <button type="button" class="role-tab" data-role="admin" onclick="setRole('admin')">Admin</button>
                         <button type="button" class="role-tab" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
                         <button type="button" class="role-tab" data-role="accountant" onclick="setRole('accountant')">Accountant</button>
@@ -605,7 +612,7 @@ if ($checkAdmin->rowCount() == 0) {
                         <button type="button" class="role-tab" data-role="student" onclick="setRole('student')">Student</button>
                         <button type="button" class="role-tab" data-role="parent" onclick="setRole('parent')">Parent</button>
                     </div>
-                    <input type="hidden" name="role" id="selected-role" value="admin">
+                    <input type="hidden" name="role" id="selected-role" value="super_admin">
 
                     <div class="field-group">
                         <label>Email</label>
@@ -653,16 +660,17 @@ if ($checkAdmin->rowCount() == 0) {
                 </form>
 
                 <div class="test-credentials">
-    <strong>Test Credentials (Password: admin123)</strong>
-    <div class="test-credentials-row">
-        <span>Admin: admin@dsr.com</span>
-        <span>Teacher: teacher@dsr.com</span>
-        <span>Accountant: accountant@dsr.com</span>
-        <span>Academic Officer: academic@dsr.com</span>
-        <span>Student: student@dsr.com</span>
-        <span>Parent: parent@dsr.com</span>
-    </div>
-</div>
+                    <strong>Test Credentials (Password: admin123)</strong>
+                    <div class="test-credentials-row">
+                        <span>Principal: principal@dsr.com</span>
+                        <span>Admin: admin@dsr.com</span>
+                        <span>Teacher: teacher@dsr.com</span>
+                        <span>Accountant: accountant@dsr.com</span>
+                        <span>Academic Officer: academic@dsr.com</span>
+                        <span>Student: student@dsr.com</span>
+                        <span>Parent: parent@dsr.com</span>
+                    </div>
+                </div>
 
                 <div class="divider"><span>or</span></div>
                 <div class="help-text">
@@ -692,11 +700,12 @@ if ($checkAdmin->rowCount() == 0) {
             document.getElementById('selected-role').value = role;
             
             const emails = {
+                super_admin: 'principal@dsr.com',
                 admin: 'admin@dsr.com',
                 teacher: 'teacher@dsr.com',
                 accountant: 'accountant@dsr.com',
                 academic_officer: 'academic@dsr.com',
-                student: 'student1@dsr.com',
+                student: 'student@dsr.com',
                 parent: 'parent@dsr.com'
             };
             document.getElementById('email').value = emails[role];
