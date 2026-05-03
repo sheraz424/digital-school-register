@@ -2,22 +2,9 @@
 require_once 'db_connection.php';
 redirectIfNotLoggedIn();
 
-if ($_SESSION['user_role'] !== 'admin') {
+if ($_SESSION['user_role'] !== 'admin' && $_SESSION['user_role'] !== 'super_admin') {
     header('Location: dashboard.php');
     exit;
-}
-
-// Handle Add Accountant
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_accountant'])) {
-    $full_name = $_POST['full_name'];
-    $email = $_POST['email'];
-    $username = $_POST['username'];
-    $contact = $_POST['contact'];
-    $password = 'accountant123';
-    
-    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'accountant', ?)");
-    $stmt->execute([$username, $email, $password, $full_name, $contact]);
-    $success = "Accountant added! Email: $email | Password: $password";
 }
 
 // Handle Delete
@@ -27,6 +14,19 @@ if (isset($_GET['delete'])) {
     $stmt->execute([$id]);
     header('Location: manage_accountants.php');
     exit;
+}
+
+// Handle Add Accountant
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_accountant'])) {
+    $full_name = $_POST['full_name'];
+    $email = $_POST['email'];
+    $username = $_POST['username'];
+    $contact = $_POST['contact'];
+    $password = 'admin123';
+    
+    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'accountant', ?)");
+    $stmt->execute([$username, $email, $password, $full_name, $contact]);
+    $success = "Accountant added! Email: $email | Password: $password";
 }
 
 $accountants = $pdo->query("SELECT * FROM users WHERE role = 'accountant' ORDER BY id DESC")->fetchAll();
@@ -43,7 +43,7 @@ $accountants = $pdo->query("SELECT * FROM users WHERE role = 'accountant' ORDER 
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: var(--bg); }
-        .delete-btn { background: #E74C3C; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; }
+        .delete-btn { background: #E74C3C; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; }
         .add-btn { background: #2E86AB; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; margin: 20px 0; }
         .back-btn { background: #1A3A5C; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; display: inline-block; margin-right: 10px; }
         .modal {
@@ -69,9 +69,11 @@ $accountants = $pdo->query("SELECT * FROM users WHERE role = 'accountant' ORDER 
         .btn-submit { background: #2E86AB; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; }
         .btn-cancel { background: #999; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; }
         .info-text { font-size: 12px; color: #666; margin-top: -5px; margin-bottom: 10px; }
+        .theme-toggle { position: fixed; bottom: 20px; right: 20px; background: #2E86AB; color: white; border: none; padding: 10px 15px; border-radius: 25px; cursor: pointer; z-index: 1000; }
     </style>
 </head>
 <body>
+    <button class="theme-toggle" onclick="toggleTheme()">Dark/Light</button>
     <div class="container">
         <a href="dashboard.php" class="back-btn"> Back to Dashboard</a>
         <button class="add-btn" onclick="openAddModal()">+ Add New Accountant</button>
@@ -110,7 +112,7 @@ $accountants = $pdo->query("SELECT * FROM users WHERE role = 'accountant' ORDER 
                 <input type="email" name="email" placeholder="Email" required>
                 <input type="text" name="username" placeholder="Username" required>
                 <input type="text" name="contact" placeholder="Contact Number">
-                <div class="info-text">Default password: accountant123</div>
+                <div class="info-text">Default password: admin123</div>
                 <input type="hidden" name="add_accountant" value="1">
                 <div class="modal-buttons">
                     <button type="submit" class="btn-submit">Add Accountant</button>
@@ -121,12 +123,10 @@ $accountants = $pdo->query("SELECT * FROM users WHERE role = 'accountant' ORDER 
     </div>
 
     <script>
-        function openAddModal() {
-            document.getElementById('addModal').style.display = 'flex';
-        }
-        function closeModal() {
-            document.getElementById('addModal').style.display = 'none';
-        }
+        function openAddModal() { document.getElementById('addModal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('addModal').style.display = 'none'; }
+        function toggleTheme() { document.body.classList.toggle('dark-theme'); localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); }
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
     </script>
 </body>
 </html>
