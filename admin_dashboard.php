@@ -112,7 +112,7 @@ $pendingSalaries = $pdo->query("
         <div class="nav-section">Academic</div>
         <a href="timetable.php" class="nav-item">View Timetable</a>
         <a href="auto_timetable.php" class="nav-item">Generate Timetable</a>
-        <a href="datesheet.php" class="nav-item">Datesheet</a>
+        <a href="datesheet.php" class="nav-item">Generate Datesheet</a>
         <a href="view_results.php" class="nav-item">View Results</a>
         
         <div class="nav-section">Finance</div>
@@ -149,15 +149,18 @@ $pendingSalaries = $pdo->query("
                 <div class="stat-card"><div class="stat-value" style="color: #17a2b8;">Rs <?php echo number_format($totalSalaryPending); ?></div><div>Pending Salaries</div></div>
             </div>
             
+            <!-- Quick Actions -->
             <div class="card">
                 <div class="card-header"><h3>Quick Actions</h3></div>
                 <div>
                     <a href="manage_students.php" class="btn">+ Add Student</a>
                     <a href="manage_teachers.php" class="btn">+ Add Teacher</a>
-                    <a href="fee_management.php" class="btn">💰 Manage Fees</a>
+                    <a href="fee_management.php" class="btn">💰 Assign Fee</a>
+                    <a href="fee_reports.php" class="btn">💰 Fee Reports</a>
                     <a href="salary_management.php" class="btn">💰 Process Salary</a>
                     <a href="leave_management.php" class="btn">📋 Approve Leaves</a>
                     <a href="auto_timetable.php" class="btn">📅 Generate Timetable</a>
+                    <a href="datesheet.php" class="btn">📅 Generate Datesheet</a>
                     <a href="email_notifications.php" class="btn">📧 Send Notification</a>
                     <a href="export_reports.php" class="btn">📎 Export Reports</a>
                 </div>
@@ -168,33 +171,13 @@ $pendingSalaries = $pdo->query("
                 <div class="card-header"><h3>Pending Leave Requests</h3><a href="leave_management.php" class="btn btn-secondary btn-sm">View All</a></div>
                 <input type="text" id="searchLeaves" class="search-box" placeholder="Search by employee name...">
                 <div style="overflow-x: auto;">
-                    <table>
-                        <thead><tr><th>Employee</th><th>Role</th><th>Type</th><th>Dates</th><th>Action</th></tr></thead>
-                        <tbody id="leaveTable">
-                            <?php foreach($pendingLeavesList as $leave): ?>
-                            <tr><td><?php echo $leave['full_name']; ?></td><td><?php echo ucfirst($leave['role']); ?></td><td><?php echo $leave['leave_type']; ?></td><td><?php echo date('d M', strtotime($leave['start_date'])); ?> - <?php echo date('d M', strtotime($leave['end_date'])); ?></td>
-                            <td><a href="approve_leave.php?id=<?php echo $leave['id']; ?>&status=approved" class="approve-btn">Approve</a><a href="approve_leave.php?id=<?php echo $leave['id']; ?>&status=rejected" class="reject-btn">Reject</a></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Pending Salaries -->
-            <div class="card">
-                <div class="card-header"><h3>Pending Salary Payments</h3><a href="salary_management.php" class="btn btn-secondary btn-sm">View All</a></div>
-                <div style="overflow-x: auto;">
-                    <table>
-                        <thead><tr><th>Staff Name</th><th>Type</th><th>Amount</th><th>Month</th><th>Action</th></tr></thead>
-                        <tbody>
-                            <?php foreach($pendingSalaries as $salary): ?>
-                            <tr><td><?php echo $salary['staff_name']; ?></td><td><?php echo ucfirst($salary['staff_type']); ?></td><td>Rs <?php echo number_format($salary['net_amount']); ?></td><td><?php echo date('M Y', strtotime($salary['month'])); ?></td>
-                            <td><a href="salary_management.php?pay=<?php echo $salary['id']; ?>" class="pay-btn">Mark Paid</a></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <table><thead><tr><th>Employee</th><th>Role</th><th>Type</th><th>Dates</th><th>Action</th></tr></thead>
+                    <tbody id="leaveTable">
+                        <?php foreach($pendingLeavesList as $leave): ?>
+                        <tr><td><?php echo $leave['full_name']; ?></td><td><?php echo ucfirst($leave['role']); ?></td><td><?php echo $leave['leave_type']; ?></td><td><?php echo date('d M', strtotime($leave['start_date'])); ?> - <?php echo date('d M', strtotime($leave['end_date'])); ?></td>
+                        <td><a href="approve_leave.php?id=<?php echo $leave['id']; ?>&status=approved" class="approve-btn">Approve</a><a href="approve_leave.php?id=<?php echo $leave['id']; ?>&status=rejected" class="reject-btn">Reject</a></td></tr>
+                        <?php endforeach; ?>
+                    </tbody></table>
                 </div>
             </div>
             
@@ -202,10 +185,8 @@ $pendingSalaries = $pdo->query("
             <div class="card">
                 <div class="card-header"><h3>Recently Registered Students</h3><a href="manage_students.php" class="btn btn-secondary btn-sm">View All</a></div>
                 <div style="overflow-x: auto;">
-                    </table>
-                        <thead><tr><th>Roll No</th><th>Name</th><th>Date</th></tr></thead>
-                        <tbody><?php foreach($recentStudents as $s): ?><tr><td><?php echo $s['roll_no']; ?></td><td><?php echo $s['name']; ?></td><td><?php echo date('d M Y', strtotime($s['created_at'])); ?></td></tr><?php endforeach; ?></tbody>
-                    </table>
+                    <table><thead><tr><th>Roll No</th><th>Name</th><th>Date</th></tr></thead>
+                    <tbody><?php foreach($recentStudents as $s): ?><tr><td><?php echo $s['roll_no']; ?></td><td><?php echo $s['name']; ?></td><td><?php echo date('d M Y', strtotime($s['created_at'])); ?></td></tr><?php endforeach; ?></tbody></table>
                 </div>
             </div>
         </div>

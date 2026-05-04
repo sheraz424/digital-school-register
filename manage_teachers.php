@@ -2,15 +2,16 @@
 require_once 'db_connection.php';
 redirectIfNotLoggedIn();
 
-if ($_SESSION['user_role'] !== 'admin' && $_SESSION['user_role'] !== 'super_admin') {
+if ($_SESSION['user_role'] !== 'admin') {
     header('Location: dashboard.php');
     exit;
 }
 
-// Handle Add Teacher
+// Handle Add Teacher with salary
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_teacher'])) {
     $full_name = $_POST['full_name'];
     $contact = $_POST['contact'];
+    $base_salary = $_POST['base_salary'];
     
     $name_parts = explode(' ', strtolower($full_name));
     $first_name = $name_parts[0];
@@ -19,9 +20,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_teacher'])) {
     $username = $email;
     $password = 'teacher123';
     
-    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact) VALUES (?, ?, ?, ?, 'teacher', ?)");
-    $stmt->execute([$username, $email, $password, $full_name, $contact]);
-    $success = "Teacher added! Email: $email | Password: $password";
+    $stmt = $pdo->prepare("INSERT INTO users (username, email, password, full_name, role, contact, base_salary, joining_date) VALUES (?, ?, ?, ?, 'teacher', ?, ?, CURDATE())");
+    $stmt->execute([$username, $email, $password, $full_name, $contact, $base_salary]);
+    $user_id = $pdo->lastInsertId();
+    
+    // Create salary record for current month
+    $current_month = date('Y-m-01');
+    $stmt = $pdo->prepare("INSERT INTO salaries (staff_type, staff_id, month, amount, bonus, deductions, net_amount, status) VALUES ('teacher', ?, ?, ?, 0, 0, ?, 'Pending')");
+    $stmt->execute([$user_id, $current_month, $base_salary, $base_salary]);
+    
+    $success = "Teacher added! Email: $email | Password: $password | Salary: Rs $base_salary";
 }
 
 // Handle Edit Teacher
@@ -30,9 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_teacher'])) {
     $full_name = $_POST['full_name'];
     $email = $_POST['email'];
     $contact = $_POST['contact'];
+    $base_salary = $_POST['base_salary'];
     
-    $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, contact=? WHERE id=? AND role='teacher'");
-    $stmt->execute([$full_name, $email, $contact, $id]);
+    $stmt = $pdo->prepare("UPDATE users SET full_name=?, email=?, contact=?, base_salary=? WHERE id=? AND role='teacher'");
+    $stmt->execute([$full_name, $email, $contact, $base_salary, $id]);
     $success = "Teacher updated successfully!";
 }
 
@@ -55,6 +64,7 @@ if (isset($_GET['reset_password'])) {
 }
 
 $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id DESC")->fetchAll();
+$classes = $pdo->query("SELECT id, class_name, section FROM classes")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,7 +104,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
             background: white;
             padding: 30px;
             border-radius: 16px;
-            width: 400px;
+            width: 450px;
         }
         body.dark-theme .modal-content { background: var(--card); }
         .modal-content input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; }
@@ -126,7 +136,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
         <div style="overflow-x: auto;">
             <table id="teachersTable">
                 <thead>
-                    <tr><th>ID</th><th>Full Name</th><th>Email</th><th>Contact</th><th>Actions</th></tr>
+                    <tr><th>ID</th><th>Full Name</th><th>Email</th><th>Contact</th><th>Base Salary</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach($teachers as $t): ?>
@@ -135,6 +145,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
                         <td><?php echo htmlspecialchars($t['full_name']); ?></td>
                         <td><?php echo htmlspecialchars($t['email']); ?></td>
                         <td><?php echo htmlspecialchars($t['contact'] ?? '-'); ?></td>
+                        <td>Rs <?php echo number_format($t['base_salary'] ?? 50000); ?></td>
                         <td>
                             <button class="edit-btn" onclick="openEditModal(<?php echo $t['id']; ?>)">Edit</button>
                             <a href="?reset_password=<?php echo $t['id']; ?>" class="reset-btn" onclick="return confirm('Reset password to default (teacher123)?')">Reset Pwd</a>
@@ -156,6 +167,8 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
                 <div class="info-text">Email will be auto-generated: firstname.lastname@dsr.com</div>
                 <div class="info-text">Default password: teacher123</div>
                 <input type="text" name="contact" placeholder="Contact Number">
+                <input type="number" name="base_salary" placeholder="Base Salary (Rs)" value="50000" step="1000" required>
+                <div class="info-text">Salary will be auto-assigned for current month</div>
                 <input type="hidden" name="add_teacher" value="1">
                 <div class="modal-buttons">
                     <button type="submit" class="btn-submit">Add Teacher</button>
@@ -174,6 +187,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
                 <input type="text" name="full_name" id="edit_full_name" placeholder="Full Name" required>
                 <input type="email" name="email" id="edit_email" placeholder="Email" required>
                 <input type="text" name="contact" id="edit_contact" placeholder="Contact Number">
+                <input type="number" name="base_salary" id="edit_base_salary" placeholder="Base Salary (Rs)" step="1000">
                 <input type="hidden" name="edit_teacher" value="1">
                 <div class="modal-buttons">
                     <button type="submit" class="btn-submit">Save Changes</button>
@@ -195,6 +209,7 @@ $teachers = $pdo->query("SELECT * FROM users WHERE role = 'teacher' ORDER BY id 
                         document.getElementById('edit_full_name').value = data.data.full_name;
                         document.getElementById('edit_email').value = data.data.email;
                         document.getElementById('edit_contact').value = data.data.contact || '';
+                        document.getElementById('edit_base_salary').value = data.data.base_salary || 50000;
                         document.getElementById('editModal').style.display = 'flex';
                     } else { alert('Error loading teacher data'); }
                 }).catch(error => { alert('Error: ' + error); });

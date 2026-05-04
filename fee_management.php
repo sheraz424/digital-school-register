@@ -9,13 +9,16 @@ $error = '';
 // Handle Allocate Fees to Student
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['allocate_fees'])) {
     $student_id = $_POST['student_id'];
-    $fee_structure_id = $_POST['fee_structure_id'];
+    $fee_type = $_POST['fee_type'];
     $amount = $_POST['amount'];
     $due_date = $_POST['due_date'];
+    $discount = $_POST['discount'] ?? 0;
     
-    $stmt = $pdo->prepare("INSERT INTO fee_allocations (student_id, fee_structure_id, amount, due_date, status) VALUES (?, ?, ?, ?, 'Pending')");
-    $stmt->execute([$student_id, $fee_structure_id, $amount, $due_date]);
-    $message = "Fees allocated successfully!";
+    $final_amount = $amount - $discount;
+    
+    $stmt = $pdo->prepare("INSERT INTO fee_allocations (student_id, fee_type, amount, discount, due_date, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
+    $stmt->execute([$student_id, $fee_type, $final_amount, $discount, $due_date]);
+    $message = "Fees allocated successfully! Discount applied: Rs $discount";
 }
 
 // Handle Record Payment
@@ -36,11 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
     $new_total = $paid_so_far + $amount_paid;
     $receipt_no = 'RCP' . date('Ymd') . rand(1000, 9999);
     
-    $stmt = $pdo->prepare("INSERT INTO fee_payments (allocation_id, amount_paid, payment_date, payment_method, receipt_no, remarks, received_by) VALUES (?, ?, CURDATE(), ?, ?, ?, ?)");
-    $stmt->execute([$allocation_id, $amount_paid, $payment_method, $receipt_no, $remarks, $_SESSION['user_id']]);
-    
-    $stmt = $pdo->prepare("INSERT INTO fee_transactions (student_id, fee_allocation_id, amount, payment_date, payment_method, receipt_no, remarks, recorded_by) VALUES (?, ?, ?, CURDATE(), ?, ?, ?, ?)");
-    $stmt->execute([$allocation['student_id'], $allocation_id, $amount_paid, $payment_method, $receipt_no, $remarks, $_SESSION['user_id']]);
+    $stmt = $pdo->prepare("INSERT INTO fee_payments (allocation_id, student_id, amount_paid, payment_date, payment_method, receipt_no, remarks, received_by) VALUES (?, ?, ?, CURDATE(), ?, ?, ?, ?)");
+    $stmt->execute([$allocation_id, $allocation['student_id'], $amount_paid, $payment_method, $receipt_no, $remarks, $_SESSION['user_id']]);
     
     if ($new_total >= $allocation['amount']) {
         $status = 'Paid';
@@ -54,19 +54,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['record_payment'])) {
     $message = "Payment recorded successfully! Receipt No: $receipt_no";
 }
 
+// Handle Apply Discount
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['apply_discount'])) {
+    $allocation_id = $_POST['allocation_id'];
+    $discount_amount = $_POST['discount_amount'];
+    $discount_reason = $_POST['discount_reason'];
+    
+    $stmt = $pdo->prepare("UPDATE fee_allocations SET discount = ?, discount_reason = ?, amount = amount - ? WHERE id = ?");
+    $stmt->execute([$discount_amount, $discount_reason, $discount_amount, $allocation_id]);
+    $message = "Discount of Rs $discount_amount applied! Reason: $discount_reason";
+}
+
 // Handle Bulk Allocate to Class
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_allocate'])) {
     $class_id = $_POST['class_id'];
-    $fee_structure_id = $_POST['fee_structure_id'];
+    $fee_type = $_POST['fee_type'];
+    $amount = $_POST['amount'];
     $due_date = $_POST['due_date'];
     
     $students = $pdo->prepare("SELECT id FROM students WHERE class_id = ?");
     $students->execute([$class_id]);
     
     foreach($students->fetchAll() as $student) {
-        $stmt = $pdo->prepare("INSERT INTO fee_allocations (student_id, fee_structure_id, amount, due_date, status) 
-                               SELECT ?, ?, amount, ?, 'Pending' FROM fee_structure WHERE id = ?");
-        $stmt->execute([$student['id'], $fee_structure_id, $due_date, $fee_structure_id]);
+        $stmt = $pdo->prepare("INSERT INTO fee_allocations (student_id, fee_type, amount, due_date, status) VALUES (?, ?, ?, ?, 'Pending')");
+        $stmt->execute([$student['id'], $fee_type, $amount, $due_date]);
     }
     $message = "Fees allocated to all students in the class!";
 }
@@ -83,60 +94,34 @@ if (isset($_GET['mark_paid'])) {
     $stmt->execute([$allocation_id]);
     
     $receipt_no = 'RCP' . date('Ymd') . rand(1000, 9999);
-    $stmt = $pdo->prepare("INSERT INTO fee_payments (allocation_id, amount_paid, payment_date, payment_method, receipt_no, received_by) VALUES (?, ?, CURDATE(), 'Cash', ?, ?)");
-    $stmt->execute([$allocation_id, $allocation['amount'], $receipt_no, $_SESSION['user_id']]);
-    
-    $stmt = $pdo->prepare("INSERT INTO fee_transactions (student_id, fee_allocation_id, amount, payment_date, payment_method, receipt_no, recorded_by) VALUES (?, ?, ?, CURDATE(), 'Cash', ?, ?)");
-    $stmt->execute([$allocation['student_id'], $allocation_id, $allocation['amount'], $receipt_no, $_SESSION['user_id']]);
+    $stmt = $pdo->prepare("INSERT INTO fee_payments (allocation_id, student_id, amount_paid, payment_date, payment_method, receipt_no, received_by) VALUES (?, ?, ?, CURDATE(), 'Cash', ?, ?)");
+    $stmt->execute([$allocation_id, $allocation['student_id'], $allocation['amount'], $receipt_no, $_SESSION['user_id']]);
     
     $message = "Fee marked as paid! Receipt No: $receipt_no";
 }
 
-$students = $pdo->query("SELECT s.id, s.name, s.roll_no, c.class_name FROM students s JOIN classes c ON s.class_id = c.id ORDER BY c.class_name, s.roll_no")->fetchAll();
-$fee_structures = $pdo->query("SELECT * FROM fee_structure WHERE is_active = 1")->fetchAll();
+$students = $pdo->query("SELECT s.id, s.name, s.roll_no, c.class_name FROM students s JOIN classes c ON s.class_id = c.id ORDER BY s.roll_no")->fetchAll();
 $classes = $pdo->query("SELECT id, class_name, section FROM classes")->fetchAll();
 
-// Apply filters
-$status_filter = $_GET['status'] ?? '';
-$class_filter = $_GET['class_filter'] ?? '';
-$search_filter = $_GET['search'] ?? '';
-
-$query = "
-    SELECT fa.*, s.name, s.roll_no, c.class_name, c.section, fs.fee_name, 
+$allocations = $pdo->query("
+    SELECT fa.*, s.name, s.roll_no, c.class_name,
            COALESCE(SUM(fp.amount_paid), 0) as paid_amount
     FROM fee_allocations fa
     JOIN students s ON fa.student_id = s.id
     JOIN classes c ON s.class_id = c.id
-    JOIN fee_structure fs ON fa.fee_structure_id = fs.id
     LEFT JOIN fee_payments fp ON fa.id = fp.allocation_id
-    WHERE 1=1
-";
+    GROUP BY fa.id
+    ORDER BY c.class_name, s.roll_no, fa.due_date ASC
+")->fetchAll();
 
-if ($status_filter) {
-    $query .= " AND fa.status = '$status_filter'";
-}
-if ($class_filter) {
-    $query .= " AND c.id = '$class_filter'";
-}
-if ($search_filter) {
-    $query .= " AND (s.name LIKE '%$search_filter%' OR s.roll_no LIKE '%$search_filter%')";
-}
-
-$query .= " GROUP BY fa.id ORDER BY c.class_name, s.roll_no, fa.due_date ASC";
-
-$allocations = $pdo->query($query)->fetchAll();
-
-// Get summary data with filters
-$summary_query = "
+$summary = $pdo->query("
     SELECT 
         COUNT(DISTINCT student_id) as total_students,
         COALESCE(SUM(CASE WHEN status = 'Paid' THEN amount ELSE 0 END), 0) as collected,
         COALESCE(SUM(CASE WHEN status IN ('Pending', 'Partial') THEN amount ELSE 0 END), 0) as pending,
-        COALESCE(SUM(CASE WHEN status = 'Overdue' THEN amount ELSE 0 END), 0) as overdue,
         COALESCE(SUM(CASE WHEN status = 'Partial' THEN 1 ELSE 0 END), 0) as partial_count
     FROM fee_allocations
-";
-$summary = $pdo->query($summary_query)->fetch();
+")->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -151,10 +136,9 @@ $summary = $pdo->query($summary_query)->fetch();
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 1px solid #ddd; }
         body.dark-theme .card { background: var(--card); border-color: var(--border); }
-        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
         .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #ddd; }
-        body.dark-theme .stat-card { background: var(--card); border-color: var(--border); }
-        .stat-value { font-size: 28px; font-weight: bold; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #2E86AB; }
         .btn { background: #2E86AB; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin: 5px; }
         .btn-success { background: #28a745; }
         .btn-warning { background: #ffc107; color: #333; }
@@ -164,8 +148,6 @@ $summary = $pdo->query($summary_query)->fetch();
         label { display: block; margin-bottom: 5px; font-weight: 600; }
         select, input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
         .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-        .filter-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; }
-        .filter-group { flex: 1; min-width: 150px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #2E86AB; color: white; }
@@ -180,95 +162,54 @@ $summary = $pdo->query($summary_query)->fetch();
         .success { background: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 20px; }
         .theme-toggle { position: fixed; bottom: 20px; right: 20px; background: #2E86AB; color: white; border: none; padding: 10px 15px; border-radius: 25px; cursor: pointer; z-index: 1000; }
         .table-container { overflow-x: auto; }
-        .search-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .filter-row { flex-direction: column; } }
+        .filter-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end; }
+        .filter-group { flex: 1; min-width: 150px; }
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .form-row { grid-template-columns: 1fr; } th, td { font-size: 12px; padding: 6px; } }
     </style>
 </head>
 <body>
     <button class="theme-toggle" onclick="toggleTheme()">Dark/Light</button>
     <div class="container">
-        <a href="dashboard.php" class="back-btn"> Back to Dashboard</a>
+        <a href="<?php echo ($user_role === 'accountant') ? 'accountant_dashboard.php' : 'dashboard.php'; ?>" class="back-btn"> Back to Dashboard</a>
         <h1>Fee Management System</h1>
         
         <?php if($message): ?>
         <div class="success"><?php echo $message; ?></div>
         <?php endif; ?>
         
-        <!-- Statistics Summary -->
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value"><?php echo $summary['total_students']; ?></div><div>Total Students</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #28a745;">Rs <?php echo number_format($summary['collected']); ?></div><div>Collected</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #ffc107;">Rs <?php echo number_format($summary['pending']); ?></div><div>Pending</div></div>
-            <div class="stat-card"><div class="stat-value" style="color: #dc3545;">Rs <?php echo number_format($summary['overdue']); ?></div><div>Overdue</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #17a2b8;"><?php echo $summary['partial_count']; ?></div><div>Partial Payments</div></div>
         </div>
         
-        <!-- Filters -->
-        <div class="card">
-            <h3>Filters</h3>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>Search Student</label>
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search by name or roll number...">
-                </div>
-                <div class="filter-group">
-                    <label>Filter by Status</label>
-                    <select id="statusFilter">
-                        <option value="">All Status</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Partial">Partial</option>
-                        <option value="Overdue">Overdue</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>Filter by Class</label>
-                    <select id="classFilter">
-                        <option value="">All Classes</option>
-                        <?php foreach($classes as $c): ?>
-                            <option value="<?php echo $c['id']; ?>">Class <?php echo $c['class_name'] . ($c['section'] ? ' - ' . $c['section'] : ''); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" onclick="applyFilters()">Apply Filters</button>
-                    <button class="btn btn-warning" onclick="resetFilters()">Reset</button>
-                </div>
-            </div>
-        </div>
-        
-        <?php if($_SESSION['user_role'] === 'admin' || $_SESSION['user_role'] === 'accountant'): ?>
+        <?php if($user_role === 'admin' || $user_role === 'accountant'): ?>
+        <!-- Allocate Fee to Student -->
         <div class="card">
             <h2>Allocate Fee to Student</h2>
             <form method="POST">
                 <input type="hidden" name="allocate_fees" value="1">
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Search Student</label>
-                        <input type="text" id="studentSearch" class="search-input" placeholder="Type to search student...">
-                        <select name="student_id" id="studentSelect" size="5" style="height: auto; margin-top: 5px;" required>
-                            <option value="">Select Student</option>
-                            <?php foreach($students as $s): ?>
-                                <option value="<?php echo $s['id']; ?>"><?php echo $s['name']; ?> (<?php echo $s['roll_no']; ?> - <?php echo $s['class_name']; ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group"><label>Fee Type</label><select name="fee_structure_id" required><option value="">Select Fee Type</option><?php foreach($fee_structures as $fs): ?><option value="<?php echo $fs['id']; ?>"><?php echo $fs['fee_name']; ?> - Rs <?php echo number_format($fs['amount']); ?></option><?php endforeach; ?></select></div>
-                    <div class="form-group"><label>Amount</label><input type="number" name="amount" step="0.01" placeholder="Amount" required></div>
+                    <div class="form-group"><label>Student</label><select name="student_id" required><option value="">Select Student</option><?php foreach($students as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo $s['name']; ?> (<?php echo $s['roll_no']; ?> - <?php echo $s['class_name']; ?>)</option><?php endforeach; ?></select></div>
+                    <div class="form-group"><label>Fee Type</label><input type="text" name="fee_type" placeholder="e.g., Monthly Tuition, Annual Fee" required></div>
+                    <div class="form-group"><label>Amount (Rs)</label><input type="number" name="amount" step="0.01" placeholder="Amount" required></div>
+                    <div class="form-group"><label>Discount (Rs)</label><input type="number" name="discount" step="0.01" placeholder="Discount amount" value="0"></div>
                     <div class="form-group"><label>Due Date</label><input type="date" name="due_date" required></div>
                 </div>
                 <button type="submit" class="btn">Allocate Fee</button>
             </form>
         </div>
         
+        <!-- Bulk Allocate to Class -->
         <div class="card">
             <h2>Bulk Allocate to Class</h2>
             <form method="POST">
                 <input type="hidden" name="bulk_allocate" value="1">
                 <div class="form-row">
                     <div class="form-group"><label>Class</label><select name="class_id" required><option value="">Select Class</option><?php foreach($classes as $c): ?><option value="<?php echo $c['id']; ?>">Class <?php echo $c['class_name'] . ($c['section'] ? '-' . $c['section'] : ''); ?></option><?php endforeach; ?></select></div>
-                    <div class="form-group"><label>Fee Type</label><select name="fee_structure_id" required><option value="">Select Fee Type</option><?php foreach($fee_structures as $fs): ?><option value="<?php echo $fs['id']; ?>"><?php echo $fs['fee_name']; ?> - Rs <?php echo number_format($fs['amount']); ?></option><?php endforeach; ?></select></div>
+                    <div class="form-group"><label>Fee Type</label><input type="text" name="fee_type" placeholder="Fee Type" required></div>
+                    <div class="form-group"><label>Amount (Rs)</label><input type="number" name="amount" step="0.01" required></div>
                     <div class="form-group"><label>Due Date</label><input type="date" name="due_date" required></div>
                 </div>
                 <button type="submit" class="btn btn-success">Allocate to All Students in Class</button>
@@ -280,23 +221,39 @@ $summary = $pdo->query($summary_query)->fetch();
         <div class="card">
             <h2>Fee Ledger - All Allocations</h2>
             <div class="table-container">
-                <table id="feeTable">
+                <input type="text" id="searchFee" placeholder="Search by student name or roll number..." style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ddd; border-radius:6px;">
+                <table>
                     <thead>
-                        <tr><th>Student</th><th>Roll No</th><th>Class</th><th>Fee Type</th><th>Amount</th><th>Paid</th><th>Due</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
+                        <tr><th>Student</th><th>Roll No</th><th>Class</th><th>Fee Type</th><th>Amount</th><th>Discount</th><th>Paid</th><th>Due</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
                     </thead>
-                    <tbody>
-                        <?php foreach($allocations as $a): $due_amount = $a['amount'] - $a['paid_amount']; $status_class = ''; if($a['status'] == 'Paid') $status_class = 'status-paid'; elseif($a['status'] == 'Pending') $status_class = 'status-pending'; elseif($a['status'] == 'Partial') $status_class = 'status-partial'; elseif($a['status'] == 'Overdue') $status_class = 'status-overdue'; ?>
-                        <tr class="fee-row">
+                    <tbody id="feeTable">
+                        <?php foreach($allocations as $a): 
+                            $due_amount = $a['amount'] - $a['paid_amount'];
+                            $status_class = '';
+                            if($a['status'] == 'Paid') $status_class = 'status-paid';
+                            elseif($a['status'] == 'Pending') $status_class = 'status-pending';
+                            elseif($a['status'] == 'Partial') $status_class = 'status-partial';
+                            else $status_class = 'status-overdue';
+                        ?>
+                        <tr>
                             <td><?php echo htmlspecialchars($a['name']); ?></td>
                             <td><?php echo $a['roll_no']; ?></td>
-                            <td><?php echo $a['class_name'] . ($a['section'] ? '-' . $a['section'] : ''); ?></td>
-                            <td><?php echo $a['fee_name']; ?></td>
+                            <td><?php echo $a['class_name']; ?></td>
+                            <td><?php echo $a['fee_type']; ?></td>
                             <td>Rs <?php echo number_format($a['amount']); ?></td>
+                            <td>Rs <?php echo number_format($a['discount'] ?? 0); ?></td>
                             <td>Rs <?php echo number_format($a['paid_amount']); ?></td>
                             <td>Rs <?php echo number_format($due_amount); ?></td>
-                            <td><?php echo date('d M Y', strtotime($a['due_date'])); ?></td>
-                            <td class="<?php echo $status_class; ?>"><?php echo $a['status']; ?></td>
-                            <td><?php if($a['status'] != 'Paid'): ?><button class="btn btn-sm btn-success" onclick="openPaymentModal(<?php echo $a['id']; ?>, '<?php echo addslashes($a['name']); ?>', <?php echo $due_amount; ?>)">Pay</button><a href="?mark_paid=<?php echo $a['id']; ?>" class="btn btn-sm btn-warning" onclick="return confirm('Mark as paid?')">Mark Paid</a><?php else: ?><span>Paid</span><?php endif; ?></td>
+                            <td><?php echo date('d M Y', strtotime($a['due_date'])); ?></td>                            <td class="<?php echo $status_class; ?>"><?php echo $a['status']; ?></td>
+                            <td>
+                                <?php if($a['status'] != 'Paid'): ?>
+                                <button class="btn btn-sm btn-success" onclick="openPaymentModal(<?php echo $a['id']; ?>, '<?php echo addslashes($a['name']); ?>', <?php echo $due_amount; ?>)">Pay</button>
+                                <button class="btn btn-sm btn-warning" onclick="openDiscountModal(<?php echo $a['id']; ?>, '<?php echo addslashes($a['name']); ?>', <?php echo $a['amount']; ?>, <?php echo $a['paid_amount']; ?>)">Discount</button>
+                                <a href="?mark_paid=<?php echo $a['id']; ?>" class="btn btn-sm btn-warning" onclick="return confirm('Mark as paid?')">Mark Paid</a>
+                                <?php else: ?>
+                                <span>✓</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -305,6 +262,7 @@ $summary = $pdo->query($summary_query)->fetch();
         </div>
     </div>
     
+    <!-- Payment Modal -->
     <div id="paymentModal" class="modal">
         <div class="modal-content">
             <h3>Record Payment</h3>
@@ -316,33 +274,38 @@ $summary = $pdo->query($summary_query)->fetch();
                 <div class="form-group"><label>Amount Paying</label><input type="number" name="amount_paid" step="0.01" id="payment_amount" required></div>
                 <div class="form-group"><label>Payment Method</label><select name="payment_method" required><option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option><option value="Credit Card">Credit Card</option><option value="Cheque">Cheque</option></select></div>
                 <div class="form-group"><label>Remarks</label><textarea name="remarks" rows="2"></textarea></div>
-                <div style="display: flex; gap: 10px; margin-top: 20px;"><button type="submit" class="btn btn-success">Record Payment</button><button type="button" class="btn btn-danger" onclick="closeModal()">Cancel</button></div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;"><button type="submit" class="btn btn-success">Record Payment</button><button type="button" class="btn btn-danger" onclick="closeModal('paymentModal')">Cancel</button></div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Discount Modal -->
+    <div id="discountModal" class="modal">
+        <div class="modal-content">
+            <h3>Apply Discount</h3>
+            <form method="POST">
+                <input type="hidden" name="apply_discount" value="1">
+                <input type="hidden" name="allocation_id" id="discount_allocation_id">
+                <div class="form-group"><label>Student</label><input type="text" id="discount_student_name" readonly></div>
+                <div class="form-group"><label>Total Amount</label><input type="text" id="discount_total_amount" readonly></div>
+                <div class="form-group"><label>Already Paid</label><input type="text" id="discount_paid_amount" readonly></div>
+                <div class="form-group"><label>Discount Amount (Rs)</label><input type="number" name="discount_amount" step="0.01" required></div>
+                <div class="form-group"><label>Discount Reason</label><textarea name="discount_reason" rows="2" placeholder="Scholarship, Sibling discount, etc." required></textarea></div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;"><button type="submit" class="btn btn-warning">Apply Discount</button><button type="button" class="btn btn-danger" onclick="closeModal('discountModal')">Cancel</button></div>
             </form>
         </div>
     </div>
     
     <script>
-        // Student search in allocation dropdown
-        document.getElementById('studentSearch').addEventListener('keyup', function() {
+        // Search functionality
+        document.getElementById('searchFee')?.addEventListener('keyup', function() {
             let filter = this.value.toLowerCase();
-            let options = document.getElementById('studentSelect').options;
-            for (let i = 0; i < options.length; i++) {
-                let text = options[i].textContent.toLowerCase();
-                options[i].style.display = text.includes(filter) ? '' : 'none';
-            }
+            let rows = document.querySelectorAll('#feeTable tr');
+            rows.forEach(row => {
+                let text = row.innerText.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
         });
-        
-        // Apply filters
-        function applyFilters() {
-            let search = document.getElementById('searchInput').value;
-            let status = document.getElementById('statusFilter').value;
-            let classFilter = document.getElementById('classFilter').value;
-            window.location.href = `fee_management.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}&class_filter=${encodeURIComponent(classFilter)}`;
-        }
-        
-        function resetFilters() {
-            window.location.href = 'fee_management.php';
-        }
         
         function openPaymentModal(allocationId, studentName, dueAmount) {
             document.getElementById('payment_allocation_id').value = allocationId;
@@ -352,16 +315,31 @@ $summary = $pdo->query($summary_query)->fetch();
             document.getElementById('paymentModal').style.display = 'flex';
         }
         
-        function closeModal() { document.getElementById('paymentModal').style.display = 'none'; }
-        function toggleTheme() { document.body.classList.toggle('dark-theme'); localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); }
-        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
-        window.onclick = function(event) { const modal = document.getElementById('paymentModal'); if (event.target == modal) modal.style.display = 'none'; }
+        function openDiscountModal(allocationId, studentName, totalAmount, paidAmount) {
+            document.getElementById('discount_allocation_id').value = allocationId;
+            document.getElementById('discount_student_name').value = studentName;
+            document.getElementById('discount_total_amount').value = 'Rs ' + totalAmount.toLocaleString();
+            document.getElementById('discount_paid_amount').value = 'Rs ' + paidAmount.toLocaleString();
+            document.getElementById('discountModal').style.display = 'flex';
+        }
         
-        // Get URL parameters and set filter values
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('search')) document.getElementById('searchInput').value = urlParams.get('search');
-        if (urlParams.get('status')) document.getElementById('statusFilter').value = urlParams.get('status');
-        if (urlParams.get('class_filter')) document.getElementById('classFilter').value = urlParams.get('class_filter');
+        function closeModal(modalId) { 
+            document.getElementById(modalId).style.display = 'none'; 
+        }
+        
+        function toggleTheme() { 
+            document.body.classList.toggle('dark-theme'); 
+            localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); 
+        }
+        
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
+        
+        window.onclick = function(event) { 
+            const paymentModal = document.getElementById('paymentModal'); 
+            const discountModal = document.getElementById('discountModal');
+            if (event.target == paymentModal) paymentModal.style.display = 'none';
+            if (event.target == discountModal) discountModal.style.display = 'none';
+        }
     </script>
 </body>
 </html>
