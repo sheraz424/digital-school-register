@@ -24,7 +24,7 @@ if (!$data) {
 $class_id = isset($data['class_id']) ? intval($data['class_id']) : 0;
 $date = isset($data['date']) ? $data['date'] : date('Y-m-d');
 $attendance = isset($data['attendance']) ? $data['attendance'] : [];
-$subject_id = isset($data['subject_id']) ? intval($data['subject_id']) : null;
+$subject_id = isset($data['subject_id']) && !empty($data['subject_id']) ? intval($data['subject_id']) : null;
 
 if (!$class_id || empty($attendance)) {
     echo json_encode(['success' => false, 'message' => 'Class ID and attendance data are required']);
@@ -45,6 +45,7 @@ try {
             continue;
         }
         
+        // Insert with subject_id (allow NULL)
         $stmt = $pdo->prepare("
             INSERT INTO attendance (student_id, class_id, subject_id, attendance_date, status, remarks, marked_by)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -52,14 +53,14 @@ try {
             status = VALUES(status), remarks = VALUES(remarks), marked_by = VALUES(marked_by)
         ");
         
-        if ($stmt->execute([$student_id, $class_id, $subject_id, $date, $status, $remarks, $_SESSION['user_id']])) {
-            $successCount++;
-        }
+        $stmt->execute([$student_id, $class_id, $subject_id, $date, $status, $remarks, $_SESSION['user_id']]);
+        $successCount++;
     }
     
     $pdo->commit();
     echo json_encode(['success' => true, 'message' => "Attendance saved successfully. $successCount records updated."]);
     exit;
+    
 } catch (PDOException $e) {
     $pdo->rollBack();
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);

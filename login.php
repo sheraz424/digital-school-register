@@ -18,12 +18,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_role'] = $user['role'];
         $_SESSION['user_email'] = $user['email'];
         
-        if ($user['role'] === 'accountant') {
+        // Redirect based on role
+        if ($user['role'] === 'principal') {
+            header('Location: principal_dashboard.php');
+        } elseif ($user['role'] === 'accountant') {
             header('Location: accountant_dashboard.php');
-        } elseif ($user['role'] === 'academic_officer') {
-            header('Location: academic_officer_dashboard.php');
-        } elseif ($user['role'] === 'super_admin') {
-            header('Location: dashboard.php');
+        } elseif ($user['role'] === 'teacher') {
+            header('Location: teacher_dashboard.php');
+        } elseif ($user['role'] === 'student') {
+            header('Location: student_dashboard.php');
+        } elseif ($user['role'] === 'parent') {
+            header('Location: parent_dashboard.php');
         } else {
             header('Location: dashboard.php');
         }
@@ -280,14 +285,14 @@ if ($checkAdmin->rowCount() == 0) {
 
         .role-tab {
             flex: 1;
-            min-width: 70px;
+            min-width: 75px;
             padding: 10px 6px;
             border: none;
             background: transparent;
             border-radius: 8px;
             cursor: pointer;
             font-family: 'Sora', sans-serif;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 500;
             color: #6B7A8D;
             text-align: center;
@@ -295,11 +300,11 @@ if ($checkAdmin->rowCount() == 0) {
         }
 
         @media (max-width: 700px) {
-            .role-tab { font-size: 10px; min-width: 55px; padding: 8px 4px; }
+            .role-tab { font-size: 10px; min-width: 60px; padding: 8px 4px; }
         }
         @media (max-width: 550px) {
             .role-tabs { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; }
-            .role-tab { flex: 0 0 auto; white-space: nowrap; min-width: auto; padding: 8px 12px; }
+            .role-tab { flex: 0 0 auto; white-space: nowrap; min-width: auto; padding: 8px 14px; font-size: 11px; }
         }
 
         .role-tab.active {
@@ -416,19 +421,19 @@ if ($checkAdmin->rowCount() == 0) {
 
         .btn-login {
             width: 100%;
-            padding: 12px 20px;
+            padding: 14px 24px;
             background: linear-gradient(135deg, #1A3A5C, #2E86AB);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-family: 'Sora', sans-serif;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
             transition: all 0.2s;
         }
 
@@ -502,10 +507,11 @@ if ($checkAdmin->rowCount() == 0) {
 
         .test-credentials span {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 3px 10px;
             background: white;
-            border-radius: 4px;
+            border-radius: 20px;
             font-size: 10px;
+            font-weight: 500;
         }
 
         .right-footer {
@@ -537,13 +543,15 @@ if ($checkAdmin->rowCount() == 0) {
         @media (max-width: 900px) {
             .left-panel { display: none; }
             .right-panel { background: #0F2447; }
-            .form-card { box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+            .form-card { box-shadow: 0 8px 40px rgba(0,0,0,0.3); padding: 32px 24px; max-width: 380px; }
             .theme-btn { left: auto; right: 20px; }
             body.dark .right-panel { background: #0a0a1a; }
         }
 
-        @media (max-width: 500px) {
+        @media (max-width: 480px) {
             .form-card { padding: 24px 20px; }
+            .form-header h2 { font-size: 22px; }
+            .test-credentials span { font-size: 9px; padding: 2px 6px; }
         }
     </style>
 </head>
@@ -569,14 +577,14 @@ if ($checkAdmin->rowCount() == 0) {
             </div>
             <div class="left-content">
                 <h1>Smart School<br/>Management<br/><em>Redefined.</em></h1>
-                <p>Unified platform for principals, administrators, teachers, accountants, academic officers, students, and parents.</p>
+                <p>Unified platform for administrators, principals, teachers, accountants, students, and parents.</p>
                 <div class="stats-row">
                     <div class="stat">
-                        <div class="stat-num">7</div>
+                        <div class="stat-num">6</div>
                         <div class="stat-label">User Roles</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-num">20+</div>
+                        <div class="stat-num">15+</div>
                         <div class="stat-label">Modules</div>
                     </div>
                     <div class="stat">
@@ -604,15 +612,14 @@ if ($checkAdmin->rowCount() == 0) {
 
                 <form method="POST">
                     <div class="role-tabs">
-                        <button type="button" class="role-tab" data-role="super_admin" onclick="setRole('super_admin')">Principal</button>
                         <button type="button" class="role-tab" data-role="admin" onclick="setRole('admin')">Admin</button>
+                        <button type="button" class="role-tab" data-role="principal" onclick="setRole('principal')">Principal</button>
                         <button type="button" class="role-tab" data-role="teacher" onclick="setRole('teacher')">Teacher</button>
                         <button type="button" class="role-tab" data-role="accountant" onclick="setRole('accountant')">Accountant</button>
-                        <button type="button" class="role-tab" data-role="academic_officer" onclick="setRole('academic_officer')">Academic Officer</button>
                         <button type="button" class="role-tab" data-role="student" onclick="setRole('student')">Student</button>
                         <button type="button" class="role-tab" data-role="parent" onclick="setRole('parent')">Parent</button>
                     </div>
-                    <input type="hidden" name="role" id="selected-role" value="super_admin">
+                    <input type="hidden" name="role" id="selected-role" value="admin">
 
                     <div class="field-group">
                         <label>Email</label>
@@ -662,11 +669,10 @@ if ($checkAdmin->rowCount() == 0) {
                 <div class="test-credentials">
                     <strong>Test Credentials (Password: admin123)</strong>
                     <div class="test-credentials-row">
-                        <span>Principal: principal@dsr.com</span>
                         <span>Admin: admin@dsr.com</span>
+                        <span>Principal: principal@dsr.com</span>
                         <span>Teacher: teacher@dsr.com</span>
                         <span>Accountant: accountant@dsr.com</span>
-                        <span>Academic Officer: academic@dsr.com</span>
                         <span>Student: student@dsr.com</span>
                         <span>Parent: parent@dsr.com</span>
                     </div>
@@ -690,7 +696,6 @@ if ($checkAdmin->rowCount() == 0) {
     </button>
 
     <script>
-        // Set default values
         document.getElementById('email').value = '';
         document.getElementById('password').value = '';
 
@@ -700,11 +705,10 @@ if ($checkAdmin->rowCount() == 0) {
             document.getElementById('selected-role').value = role;
             
             const emails = {
-                super_admin: 'principal@dsr.com',
                 admin: 'admin@dsr.com',
+                principal: 'principal@dsr.com',
                 teacher: 'teacher@dsr.com',
                 accountant: 'accountant@dsr.com',
-                academic_officer: 'academic@dsr.com',
                 student: 'student@dsr.com',
                 parent: 'parent@dsr.com'
             };

@@ -16,6 +16,8 @@ if (!$class_id) {
     exit;
 }
 
+$subject_id = isset($_GET['subject_id']) ? intval($_GET['subject_id']) : null;
+
 try {
     $stmt = $pdo->prepare("
         SELECT s.id, s.roll_no, s.name, s.class_id, 
@@ -29,6 +31,7 @@ try {
     $students = $stmt->fetchAll();
     
     $date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+    
     $stmt2 = $pdo->prepare("
         SELECT student_id, status, remarks 
         FROM attendance 
@@ -53,6 +56,7 @@ try {
     
     echo json_encode(['success' => true, 'message' => 'Students fetched successfully', 'data' => $students]);
     exit;
+    
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     exit;

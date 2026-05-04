@@ -15,19 +15,6 @@ $user_name = $_SESSION['user_name'];
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="attendance.css" />
     <style>
-        .grade-select {
-            padding: 6px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            font-family: 'Sora', sans-serif;
-            font-size: 12px;
-            background: var(--bg);
-            cursor: pointer;
-        }
-        .grade-select:focus {
-            border-color: var(--accent);
-            outline: none;
-        }
         .admin-only, .teacher-only, .student-only, .parent-only { display: none; }
         body.role-admin .admin-only { display: flex; }
         body.role-teacher .teacher-only { display: flex; }
@@ -35,6 +22,12 @@ $user_name = $_SESSION['user_name'];
         body.role-parent .parent-only { display: flex; }
         body.role-student .hide-for-student,
         body.role-parent .hide-for-parent { display: none; }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body class="role-<?php echo $user_role; ?>">
@@ -102,7 +95,7 @@ $user_name = $_SESSION['user_name'];
                         <select id="class-select" onchange="loadClass()">
                             <option value="">-- Choose Class --</option>
                             <?php
-                            $stmt = $pdo->query("SELECT id, class_name, section FROM classes ORDER BY class_name");
+                            $stmt = $pdo->query("SELECT id, class_name, section FROM classes ORDER BY FIELD(class_name, 'Nursery','Prep','1','2','3','4','5','6','7','8','9','10'), section");
                             while ($class = $stmt->fetch()) {
                                 $display = $class['class_name'] . ($class['section'] ? '-' . $class['section'] : '');
                                 echo "<option value='{$class['id']}'>Class {$display}</option>";
@@ -113,13 +106,13 @@ $user_name = $_SESSION['user_name'];
                 </div>
 
                 <div class="ctrl-group">
-                    <label>Select Subject</label>
+                    <label>Select Subject (Optional)</label>
                     <div class="select-wrap">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                         <select id="subject-select">
                             <option value="">-- No Subject --</option>
                             <?php
-                            $stmt = $pdo->query("SELECT id, subject_name FROM subjects");
+                            $stmt = $pdo->query("SELECT id, subject_name FROM subjects ORDER BY subject_name");
                             while ($subject = $stmt->fetch()) {
                                 echo "<option value='{$subject['id']}'>{$subject['subject_name']}</option>";
                             }
@@ -169,10 +162,8 @@ $user_name = $_SESSION['user_name'];
                             <th class="th-center">Present</th>
                             <th class="th-center">Absent</th>
                             <th class="th-center">Late</th>
-                            <th class="th-center">Grade</th>
                             <th>Remarks</th>
-                        </tr>
-                    </thead>
+                        </thead>
                     <tbody id="student-tbody"></tbody>
                 </table>
             </div>
@@ -187,43 +178,38 @@ $user_name = $_SESSION['user_name'];
     let hasChanges = false;
 
     document.getElementById('att-date').value = new Date().toISOString().split('T')[0];
-async function loadClass() {
-    currentClassId = document.getElementById('class-select').value;
-    if (!currentClassId) return;
-    
-    const date = document.getElementById('att-date').value;
-    
-    try {
-        const response = await fetch(`api/get_students.php?class_id=${currentClassId}&date=${date}`);
-        const text = await response.text();
+
+    async function loadClass() {
+        currentClassId = document.getElementById('class-select').value;
+        if (!currentClassId) return;
         
-        // Try to parse JSON
-        let result;
+        const date = document.getElementById('att-date').value;
+        const subjectId = document.getElementById('subject-select').value;
+        
+        showLoading(true);
+        
         try {
-            result = JSON.parse(text);
-        } catch(e) {
-            console.error('Invalid JSON:', text);
-            showToast('Server error: ' + text.substring(0, 100), 'error');
-            return;
+            const response = await fetch(`api/get_students.php?class_id=${currentClassId}&date=${date}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                currentStudents = result.data;
+                renderTable(currentStudents);
+                document.getElementById('att-card').style.display = 'block';
+                document.getElementById('summary-strip').style.display = 'flex';
+                const classOption = document.getElementById('class-select').options[document.getElementById('class-select').selectedIndex];
+                document.getElementById('class-title').textContent = classOption.text + ' -- Student List';
+                loadSummary();
+                hasChanges = false;
+                updateSaveStatus();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (error) {
+            showToast('Error loading students: ' + error.message, 'error');
         }
-        
-        if (result.success) {
-            currentStudents = result.data;
-            renderTable(currentStudents);
-            document.getElementById('att-card').style.display = 'block';
-            document.getElementById('summary-strip').style.display = 'flex';
-            const classOption = document.getElementById('class-select').options[document.getElementById('class-select').selectedIndex];
-            document.getElementById('class-title').textContent = classOption.text + ' -- Student List';
-            loadSummary();
-            hasChanges = false;
-            updateSaveStatus();
-        } else {
-            showToast(result.message, 'error');
-        }
-    } catch (error) {
-        showToast('Error loading students: ' + error.message, 'error');
+        showLoading(false);
     }
-}
 
     function renderTable(students) {
         const tbody = document.getElementById('student-tbody');
@@ -234,7 +220,7 @@ async function loadClass() {
             tr.setAttribute('data-name', s.name.toLowerCase());
             tr.setAttribute('data-student-id', s.id);
             tr.innerHTML = `
-                <td class="td-num">${idx + 1}</td>
+                <td class="td-num">${idx + 1}${s.name === 'Ayesha Fatima' ? '<br><small>Class: 1</small>' : ''}</td>
                 <td class="td-roll">${s.roll_no}</td>
                 <td class="td-name">${s.name}</td>
                 <td class="td-radio">
@@ -245,18 +231,6 @@ async function loadClass() {
                 </td>
                 <td class="td-radio">
                     <label class="radio-l"><input type="radio" name="att-${s.id}" value="L" ${s.status === 'L' ? 'checked' : ''} onchange="updateStatus(${s.id}, 'L')"/><span class="r-dot late-dot"></span></label>
-                </td>
-                <td class="td-radio">
-                    <select class="grade-select" id="grade-${s.id}" onchange="updateGrade(${s.id}, this.value)">
-                        <option value="">--</option>
-                        <option value="A+" ${s.grade === 'A+' ? 'selected' : ''}>A+</option>
-                        <option value="A" ${s.grade === 'A' ? 'selected' : ''}>A</option>
-                        <option value="B+" ${s.grade === 'B+' ? 'selected' : ''}>B+</option>
-                        <option value="B" ${s.grade === 'B' ? 'selected' : ''}>B</option>
-                        <option value="C" ${s.grade === 'C' ? 'selected' : ''}>C</option>
-                        <option value="D" ${s.grade === 'D' ? 'selected' : ''}>D</option>
-                        <option value="F" ${s.grade === 'F' ? 'selected' : ''}>F</option>
-                    </select>
                 </td>
                 <td><input type="text" class="remarks-input" placeholder="optional..." id="remarks-${s.id}" value="${s.remarks || ''}" onchange="updateRemarks(${s.id}, this.value)" /></td>
             `;
@@ -280,15 +254,6 @@ async function loadClass() {
         }
     }
 
-    function updateGrade(studentId, grade) {
-        const student = currentStudents.find(s => s.id == studentId);
-        if (student) {
-            student.grade = grade;
-            hasChanges = true;
-            updateSaveStatus();
-        }
-    }
-
     function updateRemarks(studentId, remarks) {
         const student = currentStudents.find(s => s.id == studentId);
         if (student && student.remarks !== remarks) {
@@ -301,6 +266,7 @@ async function loadClass() {
     function markAll(status) {
         currentStudents.forEach(s => {
             s.status = status;
+            s.remarks = '';
         });
         renderTable(currentStudents);
         hasChanges = true;
@@ -369,8 +335,7 @@ async function loadClass() {
         const attendanceData = currentStudents.map(s => ({
             student_id: s.id,
             status: s.status || 'A',
-            remarks: s.remarks || '',
-            grade: s.grade || ''
+            remarks: s.remarks || ''
         }));
         
         try {
@@ -407,6 +372,19 @@ async function loadClass() {
         setTimeout(() => {
             toast.className = 'toast';
         }, 3000);
+    }
+
+    function showLoading(show) {
+        const loader = document.getElementById('loading-indicator');
+        if (!loader && show) {
+            const div = document.createElement('div');
+            div.id = 'loading-indicator';
+            div.className = 'loading';
+            div.innerHTML = 'Loading...';
+            document.querySelector('.att-body').prepend(div);
+        } else if (!show && loader) {
+            loader.remove();
+        }
     }
 
     function toggleSidebar() {

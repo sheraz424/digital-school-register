@@ -15,13 +15,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['apply_leave'])) {
     $end_date = $_POST['end_date'];
     $reason = $_POST['reason'];
     
-    $stmt = $pdo->prepare("INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
-    $stmt->execute([$user_id, $leave_type, $start_date, $end_date, $reason]);
-    $message = "Leave request submitted successfully!";
+    // Auto-approve for admin and super_admin
+    if ($user_role === 'admin' || $user_role === 'super_admin') {
+        $status = 'Approved';
+        $approved_by = $user_id;
+    } else {
+        $status = 'Pending';
+        $approved_by = NULL;
+    }
+    
+    $stmt = $pdo->prepare("INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status, approved_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$user_id, $leave_type, $start_date, $end_date, $reason, $status, $approved_by]);
+    $message = $status === 'Approved' ? "Leave request auto-approved!" : "Leave request submitted successfully!";
 }
 
-// Approve/Reject leave (Admin only)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_leave']) && $user_role === 'admin') {
+// Approve/Reject leave (Admin and Super Admin)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_leave']) && ($user_role === 'admin' || $user_role === 'super_admin')) {
     $leave_id = $_POST['leave_id'];
     $status = $_POST['status'];
     $remarks = $_POST['remarks'];
@@ -31,17 +40,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_leave']) && $
     $message = "Leave request $status!";
 }
 
-// Get leave requests
-if ($user_role === 'admin') {
+// Get leave requests based on role
+if ($user_role === 'super_admin') {
+    // Super admin sees all pending leaves including admin
     $leaveRequests = $pdo->query("
         SELECT l.*, u.full_name, u.role 
         FROM leave_requests l
         JOIN users u ON l.user_id = u.id
-        ORDER BY l.created_at DESC
+        ORDER BY FIELD(l.status, 'Pending', 'Approved', 'Rejected'), l.created_at DESC
+    ")->fetchAll();
+} elseif ($user_role === 'admin') {
+    // Admin sees all non-admin leaves
+    $leaveRequests = $pdo->query("
+        SELECT l.*, u.full_name, u.role 
+        FROM leave_requests l
+        JOIN users u ON l.user_id = u.id
+        WHERE u.role NOT IN ('admin', 'super_admin')
+        ORDER BY FIELD(l.status, 'Pending', 'Approved', 'Rejected'), l.created_at DESC
     ")->fetchAll();
 } else {
+    // Regular users see only their own leaves
     $leaveRequests = $pdo->prepare("
-        SELECT * FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC
+        SELECT l.*, u.full_name, u.role 
+        FROM leave_requests l
+        JOIN users u ON l.user_id = u.id
+        WHERE l.user_id = ? 
+        ORDER BY l.created_at DESC
     ");
     $leaveRequests->execute([$user_id]);
     $leaveRequests = $leaveRequests->fetchAll();
@@ -89,19 +113,19 @@ $rejectedCount = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status =
         .back-btn { display: inline-block; margin-bottom: 20px; padding: 10px 20px; background: #1A3A5C; color: white; text-decoration: none; border-radius: 8px; }
         .theme-toggle { position: fixed; bottom: 20px; right: 20px; background: #2E86AB; color: white; border: none; padding: 10px 15px; border-radius: 25px; cursor: pointer; z-index: 1000; }
         @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        .search-box { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; }
     </style>
 </head>
 <body>
     <button class="theme-toggle" onclick="toggleTheme()">Dark/Light</button>
     <div class="container">
-        <a href="dashboard.php" class="back-btn">← Back to Dashboard</a>
+        <a href="dashboard.php" class="back-btn"> Back to Dashboard</a>
         <h1>Leave Management System</h1>
         
         <?php if($message): ?>
         <div class="success"><?php echo $message; ?></div>
         <?php endif; ?>
         
-        <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value pending"><?php echo $pendingCount; ?></div><div>Pending</div></div>
             <div class="stat-card"><div class="stat-value approved"><?php echo $approvedCount; ?></div><div>Approved</div></div>
@@ -133,41 +157,30 @@ $rejectedCount = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status =
         
         <!-- Leave History -->
         <div class="card">
-            <h2><?php echo $user_role === 'admin' ? 'All Leave Requests' : 'My Leave Requests'; ?></h2>
+            <h2><?php echo ($user_role === 'admin' || $user_role === 'super_admin') ? 'All Leave Requests' : 'My Leave Requests'; ?></h2>
+            <input type="text" id="searchLeave" class="search-box" placeholder="Search by employee name or role...">
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr>
-                            <th>Date</th>
-                            <?php if($user_role === 'admin'): ?><th>Employee</th><?php endif; ?>
-                            <th>Type</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Reason</th>
-                            <th>Status</th>
-                            <th>Remarks</th>
-                            <?php if($user_role === 'admin'): ?><th>Action</th><?php endif; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
+                        <tr><th>Date</th><th>Employee</th><th>Role</th><th>Type</th><th>Start Date</th><th>End Date</th><th>Reason</th><th>Status</th><th>Remarks</th><?php if($user_role === 'admin' || $user_role === 'super_admin'): ?><th>Action</th><?php endif; ?></thead>
+                    <tbody id="leaveTable">
                         <?php foreach($leaveRequests as $l): ?>
-                        <tr>
+                        <tr class="leave-row">
                             <td><?php echo date('d M Y', strtotime($l['created_at'])); ?></td>
-                            <?php if($user_role === 'admin'): ?>
-                            <td><?php echo $l['full_name']; ?><br><small><?php echo ucfirst($l['role']); ?></small></td>
-                            <?php endif; ?>
+                            <td><?php echo $l['full_name']; ?></td>
+                            <td><?php echo ucfirst($l['role']); ?></td>
                             <td><?php echo $l['leave_type']; ?></td>
                             <td><?php echo date('d M Y', strtotime($l['start_date'])); ?></td>
                             <td><?php echo date('d M Y', strtotime($l['end_date'])); ?></td>
                             <td><?php echo substr($l['reason'], 0, 50); ?>...</td>
                             <td class="status-<?php echo $l['status']; ?>"><?php echo $l['status']; ?></td>
                             <td><?php echo $l['remarks'] ?: '-'; ?></td>
-                            <?php if($user_role === 'admin' && $l['status'] === 'Pending'): ?>
+                            <?php if(($user_role === 'admin' || $user_role === 'super_admin') && $l['status'] === 'Pending'): ?>
                             <td>
                                 <form method="POST" style="display:inline-block;">
                                     <input type="hidden" name="leave_id" value="<?php echo $l['id']; ?>">
                                     <input type="hidden" name="status" value="Approved">
-                                    <input type="hidden" name="remarks" value="Approved by Admin">
+                                    <input type="hidden" name="remarks" value="Approved by <?php echo ucfirst($user_role); ?>">
                                     <button type="submit" name="approve_leave" class="btn btn-sm btn-success">Approve</button>
                                 </form>
                                 <form method="POST" style="display:inline-block;">
@@ -177,24 +190,26 @@ $rejectedCount = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status =
                                     <button type="submit" name="approve_leave" class="btn btn-sm btn-danger">Reject</button>
                                 </form>
                             </td>
-                            <?php elseif($user_role === 'admin'): ?>
+                            <?php elseif($user_role === 'admin' || $user_role === 'super_admin'): ?>
                             <td>-</td>
                             <?php endif; ?>
                         </tr>
                         <?php endforeach; ?>
-                        <?php if(empty($leaveRequests)): ?>
-                        <tr><td colspan="<?php echo $user_role === 'admin' ? '9' : '7'; ?>" style="text-align:center;">No leave requests found</td></tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
     <script>
-        function toggleTheme() { 
-            document.body.classList.toggle('dark-theme'); 
-            localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); 
-        }
+        document.getElementById('searchLeave').addEventListener('keyup', function() {
+            let filter = this.value.toLowerCase();
+            let rows = document.querySelectorAll('#leaveTable tr');
+            rows.forEach(row => {
+                let text = row.innerText.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+        function toggleTheme() { document.body.classList.toggle('dark-theme'); localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); }
         if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
     </script>
 </body>

@@ -92,30 +92,51 @@ if (isset($_GET['mark_paid'])) {
     $message = "Fee marked as paid! Receipt No: $receipt_no";
 }
 
-$students = $pdo->query("SELECT s.id, s.name, s.roll_no, c.class_name FROM students s JOIN classes c ON s.class_id = c.id ORDER BY s.roll_no")->fetchAll();
+$students = $pdo->query("SELECT s.id, s.name, s.roll_no, c.class_name FROM students s JOIN classes c ON s.class_id = c.id ORDER BY c.class_name, s.roll_no")->fetchAll();
 $fee_structures = $pdo->query("SELECT * FROM fee_structure WHERE is_active = 1")->fetchAll();
 $classes = $pdo->query("SELECT id, class_name, section FROM classes")->fetchAll();
 
-$allocations = $pdo->query("
-    SELECT fa.*, s.name, s.roll_no, c.class_name, fs.fee_name, 
+// Apply filters
+$status_filter = $_GET['status'] ?? '';
+$class_filter = $_GET['class_filter'] ?? '';
+$search_filter = $_GET['search'] ?? '';
+
+$query = "
+    SELECT fa.*, s.name, s.roll_no, c.class_name, c.section, fs.fee_name, 
            COALESCE(SUM(fp.amount_paid), 0) as paid_amount
     FROM fee_allocations fa
     JOIN students s ON fa.student_id = s.id
     JOIN classes c ON s.class_id = c.id
     JOIN fee_structure fs ON fa.fee_structure_id = fs.id
     LEFT JOIN fee_payments fp ON fa.id = fp.allocation_id
-    GROUP BY fa.id
-    ORDER BY c.class_name, s.roll_no, fa.due_date ASC
-")->fetchAll();
+    WHERE 1=1
+";
 
-$summary = $pdo->query("
+if ($status_filter) {
+    $query .= " AND fa.status = '$status_filter'";
+}
+if ($class_filter) {
+    $query .= " AND c.id = '$class_filter'";
+}
+if ($search_filter) {
+    $query .= " AND (s.name LIKE '%$search_filter%' OR s.roll_no LIKE '%$search_filter%')";
+}
+
+$query .= " GROUP BY fa.id ORDER BY c.class_name, s.roll_no, fa.due_date ASC";
+
+$allocations = $pdo->query($query)->fetchAll();
+
+// Get summary data with filters
+$summary_query = "
     SELECT 
         COUNT(DISTINCT student_id) as total_students,
         COALESCE(SUM(CASE WHEN status = 'Paid' THEN amount ELSE 0 END), 0) as collected,
         COALESCE(SUM(CASE WHEN status IN ('Pending', 'Partial') THEN amount ELSE 0 END), 0) as pending,
+        COALESCE(SUM(CASE WHEN status = 'Overdue' THEN amount ELSE 0 END), 0) as overdue,
         COALESCE(SUM(CASE WHEN status = 'Partial' THEN 1 ELSE 0 END), 0) as partial_count
     FROM fee_allocations
-")->fetch();
+";
+$summary = $pdo->query($summary_query)->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -130,10 +151,10 @@ $summary = $pdo->query("
         .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
         .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 1px solid #ddd; }
         body.dark-theme .card { background: var(--card); border-color: var(--border); }
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 20px; }
         .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #ddd; }
         body.dark-theme .stat-card { background: var(--card); border-color: var(--border); }
-        .stat-value { font-size: 28px; font-weight: bold; color: #2E86AB; }
+        .stat-value { font-size: 28px; font-weight: bold; }
         .btn { background: #2E86AB; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin: 5px; }
         .btn-success { background: #28a745; }
         .btn-warning { background: #ffc107; color: #333; }
@@ -142,15 +163,16 @@ $summary = $pdo->query("
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: 600; }
         select, input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-        body.dark-theme select, body.dark-theme input, body.dark-theme textarea { background: #0f0f23; border-color: var(--border); color: var(--text); }
         .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .filter-row { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { flex: 1; min-width: 150px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #2E86AB; color: white; }
-        body.dark-theme td { border-color: var(--border); }
         .status-paid { color: #28a745; font-weight: bold; }
         .status-pending { color: #ffc107; font-weight: bold; }
         .status-partial { color: #17a2b8; font-weight: bold; }
+        .status-overdue { color: #dc3545; font-weight: bold; }
         .back-btn { display: inline-block; margin-bottom: 20px; padding: 10px 20px; background: #1A3A5C; color: white; text-decoration: none; border-radius: 8px; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 30px; border-radius: 16px; width: 500px; max-width: 90%; }
@@ -158,7 +180,8 @@ $summary = $pdo->query("
         .success { background: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 20px; }
         .theme-toggle { position: fixed; bottom: 20px; right: 20px; background: #2E86AB; color: white; border: none; padding: 10px 15px; border-radius: 25px; cursor: pointer; z-index: 1000; }
         .table-container { overflow-x: auto; }
-        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .form-row { grid-template-columns: 1fr; } th, td { font-size: 12px; padding: 6px; } }
+        .search-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .filter-row { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -171,11 +194,48 @@ $summary = $pdo->query("
         <div class="success"><?php echo $message; ?></div>
         <?php endif; ?>
         
+        <!-- Statistics Summary -->
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value"><?php echo $summary['total_students']; ?></div><div>Total Students</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #28a745;">Rs <?php echo number_format($summary['collected']); ?></div><div>Collected</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #ffc107;">Rs <?php echo number_format($summary['pending']); ?></div><div>Pending</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: #dc3545;">Rs <?php echo number_format($summary['overdue']); ?></div><div>Overdue</div></div>
             <div class="stat-card"><div class="stat-value" style="color: #17a2b8;"><?php echo $summary['partial_count']; ?></div><div>Partial Payments</div></div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="card">
+            <h3>Filters</h3>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Search Student</label>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search by name or roll number...">
+                </div>
+                <div class="filter-group">
+                    <label>Filter by Status</label>
+                    <select id="statusFilter">
+                        <option value="">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Partial">Partial</option>
+                        <option value="Overdue">Overdue</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Filter by Class</label>
+                    <select id="classFilter">
+                        <option value="">All Classes</option>
+                        <?php foreach($classes as $c): ?>
+                            <option value="<?php echo $c['id']; ?>">Class <?php echo $c['class_name'] . ($c['section'] ? ' - ' . $c['section'] : ''); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="applyFilters()">Apply Filters</button>
+                    <button class="btn btn-warning" onclick="resetFilters()">Reset</button>
+                </div>
+            </div>
         </div>
         
         <?php if($_SESSION['user_role'] === 'admin' || $_SESSION['user_role'] === 'accountant'): ?>
@@ -184,7 +244,16 @@ $summary = $pdo->query("
             <form method="POST">
                 <input type="hidden" name="allocate_fees" value="1">
                 <div class="form-row">
-                    <div class="form-group"><label>Student</label><select name="student_id" required><option value="">Select Student</option><?php foreach($students as $s): ?><option value="<?php echo $s['id']; ?>"><?php echo $s['name']; ?> (<?php echo $s['roll_no']; ?> - <?php echo $s['class_name']; ?>)</option><?php endforeach; ?></select></div>
+                    <div class="form-group">
+                        <label>Search Student</label>
+                        <input type="text" id="studentSearch" class="search-input" placeholder="Type to search student...">
+                        <select name="student_id" id="studentSelect" size="5" style="height: auto; margin-top: 5px;" required>
+                            <option value="">Select Student</option>
+                            <?php foreach($students as $s): ?>
+                                <option value="<?php echo $s['id']; ?>"><?php echo $s['name']; ?> (<?php echo $s['roll_no']; ?> - <?php echo $s['class_name']; ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="form-group"><label>Fee Type</label><select name="fee_structure_id" required><option value="">Select Fee Type</option><?php foreach($fee_structures as $fs): ?><option value="<?php echo $fs['id']; ?>"><?php echo $fs['fee_name']; ?> - Rs <?php echo number_format($fs['amount']); ?></option><?php endforeach; ?></select></div>
                     <div class="form-group"><label>Amount</label><input type="number" name="amount" step="0.01" placeholder="Amount" required></div>
                     <div class="form-group"><label>Due Date</label><input type="date" name="due_date" required></div>
@@ -207,17 +276,20 @@ $summary = $pdo->query("
         </div>
         <?php endif; ?>
         
+        <!-- Fee Allocations List -->
         <div class="card">
             <h2>Fee Ledger - All Allocations</h2>
             <div class="table-container">
-                <table>
-                    <thead><tr><th>Student</th><th>Roll No</th><th>Class</th><th>Fee Type</th><th>Amount</th><th>Paid</th><th>Due</th><th>Due Date</th><th>Status</th><th>Action</th></tr></thead>
+                <table id="feeTable">
+                    <thead>
+                        <tr><th>Student</th><th>Roll No</th><th>Class</th><th>Fee Type</th><th>Amount</th><th>Paid</th><th>Due</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
+                    </thead>
                     <tbody>
-                        <?php foreach($allocations as $a): $due_amount = $a['amount'] - $a['paid_amount']; $status_class = ''; if($a['status'] == 'Paid') $status_class = 'status-paid'; elseif($a['status'] == 'Pending') $status_class = 'status-pending'; elseif($a['status'] == 'Partial') $status_class = 'status-partial'; ?>
-                        <tr>
+                        <?php foreach($allocations as $a): $due_amount = $a['amount'] - $a['paid_amount']; $status_class = ''; if($a['status'] == 'Paid') $status_class = 'status-paid'; elseif($a['status'] == 'Pending') $status_class = 'status-pending'; elseif($a['status'] == 'Partial') $status_class = 'status-partial'; elseif($a['status'] == 'Overdue') $status_class = 'status-overdue'; ?>
+                        <tr class="fee-row">
                             <td><?php echo htmlspecialchars($a['name']); ?></td>
                             <td><?php echo $a['roll_no']; ?></td>
-                            <td><?php echo $a['class_name']; ?></td>
+                            <td><?php echo $a['class_name'] . ($a['section'] ? '-' . $a['section'] : ''); ?></td>
                             <td><?php echo $a['fee_name']; ?></td>
                             <td>Rs <?php echo number_format($a['amount']); ?></td>
                             <td>Rs <?php echo number_format($a['paid_amount']); ?></td>
@@ -250,6 +322,28 @@ $summary = $pdo->query("
     </div>
     
     <script>
+        // Student search in allocation dropdown
+        document.getElementById('studentSearch').addEventListener('keyup', function() {
+            let filter = this.value.toLowerCase();
+            let options = document.getElementById('studentSelect').options;
+            for (let i = 0; i < options.length; i++) {
+                let text = options[i].textContent.toLowerCase();
+                options[i].style.display = text.includes(filter) ? '' : 'none';
+            }
+        });
+        
+        // Apply filters
+        function applyFilters() {
+            let search = document.getElementById('searchInput').value;
+            let status = document.getElementById('statusFilter').value;
+            let classFilter = document.getElementById('classFilter').value;
+            window.location.href = `fee_management.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}&class_filter=${encodeURIComponent(classFilter)}`;
+        }
+        
+        function resetFilters() {
+            window.location.href = 'fee_management.php';
+        }
+        
         function openPaymentModal(allocationId, studentName, dueAmount) {
             document.getElementById('payment_allocation_id').value = allocationId;
             document.getElementById('payment_student_name').value = studentName;
@@ -257,10 +351,17 @@ $summary = $pdo->query("
             document.getElementById('payment_amount').value = dueAmount;
             document.getElementById('paymentModal').style.display = 'flex';
         }
+        
         function closeModal() { document.getElementById('paymentModal').style.display = 'none'; }
         function toggleTheme() { document.body.classList.toggle('dark-theme'); localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); }
         if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
         window.onclick = function(event) { const modal = document.getElementById('paymentModal'); if (event.target == modal) modal.style.display = 'none'; }
+        
+        // Get URL parameters and set filter values
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('search')) document.getElementById('searchInput').value = urlParams.get('search');
+        if (urlParams.get('status')) document.getElementById('statusFilter').value = urlParams.get('status');
+        if (urlParams.get('class_filter')) document.getElementById('classFilter').value = urlParams.get('class_filter');
     </script>
 </body>
 </html>
